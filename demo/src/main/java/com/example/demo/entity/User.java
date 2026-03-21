@@ -35,5 +35,5 @@ public class User {
 
     // 【仕組み化】ユーザーに紐づく学習履歴を一括取得できるようにする（双方向リレーション）
     @OneToMany(mappedBy = "userId", cascade = CascadeType.ALL)
-    private List<Answerlogs> progressLogs;
+    private List<UserProgress> progressLogs;
 }

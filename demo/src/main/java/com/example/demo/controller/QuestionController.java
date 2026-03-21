@@ -1,62 +1,40 @@
 package com.example.demo.controller;
 
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.*;
-import org.springframework.http.ResponseEntity;
-
-import com.example.demo.service.QuestionService;
-import com.example.demo.service.AnswerlogsService;
 import com.example.demo.entity.Question;
-import com.example.demo.entity.Answerlogs;
-import com.example.demo.dto.AnswerRequest;
-import com.example.demo.dto.HistoryResponse;
+import com.example.demo.service.QuestionService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/questions")
-@CrossOrigin(origins = "*") // フロントエンドからのアクセスを許可
+@RequiredArgsConstructor
 public class QuestionController {
 
-    @Autowired
-    private QuestionService questionService;
+    private final QuestionService questionService;
 
-    @Autowired
-    private AnswerlogsService answerlogsService;
-
-    // 1. 問題取得（全件・フィルタ共通化）
-    // GET /api/questions または /api/questions?language=Java
+    // 1. ページングされた問題取得
     @GetMapping
-    public List<Question> getQuestions(@RequestParam(required = false) String language) {
-        if (language != null && !language.isEmpty()) {
-            return questionService.getQuestionsByLanguage(language);
-        }
-        return questionService.getAllQuestions();
+    public ResponseEntity<Page<Question>> getQuestions(
+            @RequestParam String language,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        return ResponseEntity.ok(questionService.getQuestions(language, page, size));
     }
 
-    // 2. 解答履歴の保存
-    // POST /api/questions/history
-    @PostMapping("/history")
-    public ResponseEntity<Answerlogs> recordAnswer(@RequestBody AnswerRequest request) {
-        Answerlogs saved = answerlogsService.saveProgress(request);
-        return ResponseEntity.ok(saved);
+    // 2. 間違えた問題だけ取得
+    @GetMapping("/mistakes")
+    public ResponseEntity<List<Question>> getMistakes(@RequestParam UUID userId) {
+        return ResponseEntity.ok(questionService.getMistakenQuestions(userId));
     }
 
-    // 3. ユーザーごとの履歴一覧取得
-    // GET /api/questions/history/{userId}
-    @GetMapping("/history/{userId}")
-    public List<HistoryResponse> getUserHistory(@PathVariable UUID userId) {
-        System.out.println("レスポンス" + answerlogsService.getHistoryByUserId(userId));
-        return answerlogsService.getHistoryByUserId(userId);
-    }
-
-    // 4. 学習統計データの取得
-    // GET /api/questions/stats/{userId}
-    @GetMapping("/stats/{userId}")
-    public Map<String, Object> getUserStats(@PathVariable UUID userId) {
-        // Service側で集計した「正解率」「習得数」などのMapを返す
-        return answerlogsService.calculateStats(userId);
+    // 3. 途中から再開
+    @GetMapping("/resume")
+    public ResponseEntity<Page<Question>> resume(@RequestParam UUID userId, @RequestParam int limit) {
+        return ResponseEntity.ok(questionService.resumeQuestions(userId, limit));
     }
 }

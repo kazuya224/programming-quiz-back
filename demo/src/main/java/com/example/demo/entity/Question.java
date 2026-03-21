@@ -2,7 +2,9 @@ package com.example.demo.entity;
 
 import java.util.UUID;
 
+import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.annotations.UpdateTimestamp;
 import org.hibernate.type.SqlTypes;
 
 import jakarta.persistence.Id;
@@ -10,6 +12,7 @@ import jakarta.persistence.OneToMany;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.Table;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -17,31 +20,48 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import com.example.demo.entity.Option;
+
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Entity
-@Data
 @Table(name = "questions")
+@Data
 public class Question {
+
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "question_id")
-    private UUID id;
+    private UUID questionId;
+
+    @Column(name = "language")
     private String language;
+
+    @Column(name = "genre")
     private String genre;
 
     @Column(name = "difficulty_level")
-    private Integer difficultyLevel;
+    private int difficultyLevel;
+
+    @Column(name = "title")
     private String title;
 
-    @Column(name = "question_text", columnDefinition = "text")
+    @Column(name = "question_text")
     private String questionText;
 
-    @Column(name = "code_snippet", columnDefinition = "text")
+    @Column(name = "code_snippet")
     private String codeSnippet;
 
+    @Column(name = "explanation")
     private String explanation;
 
-    @OneToMany(mappedBy = "question", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "questionId", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<Option> options;
+
+    @CreationTimestamp
+    @Column(name = "created_at", updatable = false)
+    private LocalDateTime createdAt;
+
+    @UpdateTimestamp
+    @Column(name = "created_at")
+    private LocalDateTime updatedAt;
 }

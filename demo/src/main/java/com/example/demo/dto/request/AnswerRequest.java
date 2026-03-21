@@ -1,4 +1,4 @@
-package com.example.demo.dto;
+package com.example.demo.dto.request;
 
 import java.util.UUID;
 
@@ -8,6 +8,7 @@ import lombok.Data;
 public class AnswerRequest {
     private UUID userId;
     private UUID questionId;
-    private Boolean isCorrect;
-    private Integer confidence;
+    private UUID selectedOptionId;
+    private boolean isCorrect;
+    private int confidence;
 }
