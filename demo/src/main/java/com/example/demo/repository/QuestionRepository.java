@@ -9,4 +9,6 @@ import java.util.UUID;
 public interface QuestionRepository extends JpaRepository<Question, UUID> {
         // ページング対応の問題取得
         Page<Question> findByLanguage(String language, Pageable pageable);
+
+        Page<Question> findBySeqGreaterThanOrderBySeqAsc(Integer seq, Pageable pageable);
 }

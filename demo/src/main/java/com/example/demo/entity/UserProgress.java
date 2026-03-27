@@ -5,11 +5,16 @@ import java.util.UUID;
 
 import org.hibernate.annotations.CreationTimestamp;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lombok.Data;
 
@@ -19,8 +24,8 @@ import lombok.Data;
 public class UserProgress {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(name = "progress_id")
-    private UUID progressId;
+    @Column(name = "answer_log_id")
+    private UUID answer_log_id;
 
     @Column(name = "user_id")
     private UUID userId;
@@ -32,6 +37,7 @@ public class UserProgress {
     private UUID selectedOptionId; // StringからUUIDへ
 
     @Column(name = "is_correct")
+    @JsonProperty("isCorrect")
     private boolean isCorrect;
 
     @Column(name = "confidence")
@@ -40,4 +46,8 @@ public class UserProgress {
     @CreationTimestamp
     @Column(name = "answered_at")
     private LocalDateTime answeredAt;
+
+    @ManyToOne(fetch = FetchType.LAZY) // 1つの問題に対して、複数の回答履歴がある
+    @JoinColumn(name = "question_id", insertable = false, updatable = false)
+    private Question question;
 }

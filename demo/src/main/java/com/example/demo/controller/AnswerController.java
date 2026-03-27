@@ -1,6 +1,8 @@
 package com.example.demo.controller;
 
 import com.example.demo.dto.request.AnswerRequest; // リクエストボディ用のDTO
+import com.example.demo.dto.response.AnswerHistoryResponse;
+import com.example.demo.dto.response.UserHistoryResponse;
 import com.example.demo.entity.UserProgress;
 import com.example.demo.service.AnswerService;
 import lombok.RequiredArgsConstructor;
@@ -31,7 +33,7 @@ public class AnswerController {
 
     // 2. 解答履歴取得
     @GetMapping("/history/{userId}")
-    public ResponseEntity<List<UserProgress>> getHistory(@PathVariable UUID userId) {
+    public ResponseEntity<List<AnswerHistoryResponse>> getHistory(@PathVariable UUID userId) {
         return ResponseEntity.ok(answerService.getHistoryByUserId(userId));
     }
 }

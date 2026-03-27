@@ -2,6 +2,8 @@ package com.example.demo.entity;
 
 import java.util.UUID;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 import jakarta.persistence.*;
 import lombok.Data;
 
@@ -25,4 +27,9 @@ public class Option {
 
     @Column(name = "is_correct")
     private boolean isCorrect;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "question_id", insertable = false, updatable = false)
+    @JsonIgnore
+    private Question question;
 }

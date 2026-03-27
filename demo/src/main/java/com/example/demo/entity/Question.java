@@ -48,20 +48,16 @@ public class Question {
     @Column(name = "question_text")
     private String questionText;
 
-    @Column(name = "code_snippet")
+    @Column(name = "code_snippet", columnDefinition = "TEXT")
     private String codeSnippet;
 
     @Column(name = "explanation")
     private String explanation;
 
-    @OneToMany(mappedBy = "questionId", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @Column(name = "seq")
+    private int seq;
+
+    @OneToMany(mappedBy = "question", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<Option> options;
 
-    @CreationTimestamp
-    @Column(name = "created_at", updatable = false)
-    private LocalDateTime createdAt;
-
-    @UpdateTimestamp
-    @Column(name = "created_at")
-    private LocalDateTime updatedAt;
 }

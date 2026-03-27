@@ -9,4 +9,5 @@ public class OptionDto {
     private UUID optionId;
     private String optionText;
     private int optionOrder;
+    private boolean isCorrect;
 }

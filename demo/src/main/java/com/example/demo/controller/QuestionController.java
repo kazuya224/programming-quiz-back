@@ -1,5 +1,7 @@
 package com.example.demo.controller;
 
+import com.example.demo.dto.response.QuestionResponse;
+import com.example.demo.dto.response.UserStatsDto;
 import com.example.demo.entity.Question;
 import com.example.demo.service.QuestionService;
 import lombok.RequiredArgsConstructor;
@@ -9,6 +11,8 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.UUID;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 
 @RestController
 @RequestMapping("/api/questions")
@@ -19,7 +23,7 @@ public class QuestionController {
 
     // 1. ページングされた問題取得
     @GetMapping
-    public ResponseEntity<Page<Question>> getQuestions(
+    public ResponseEntity<QuestionResponse> getQuestions(
             @RequestParam String language,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
@@ -34,7 +38,14 @@ public class QuestionController {
 
     // 3. 途中から再開
     @GetMapping("/resume")
-    public ResponseEntity<Page<Question>> resume(@RequestParam UUID userId, @RequestParam int limit) {
+    public ResponseEntity<QuestionResponse> resume(@RequestParam UUID userId, @RequestParam int limit) {
         return ResponseEntity.ok(questionService.resumeQuestions(userId, limit));
     }
+
+    // 4. 統計データ取得
+    @GetMapping("/stats/{userId}")
+    public ResponseEntity<UserStatsDto> getUserStats(@PathVariable UUID userId) {
+        return ResponseEntity.ok(questionService.getuserStats(userId));
+    }
+
 }
