@@ -20,6 +20,8 @@ public class SecurityConfig {
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(csrf -> csrf.disable()) // APIとして使うため一旦無効化
+                .cors(cors -> {
+                })
                 .authorizeHttpRequests(auth -> auth
                         .anyRequest().permitAll() // 開発中なので全許可。本番ではここを絞る
                 );
