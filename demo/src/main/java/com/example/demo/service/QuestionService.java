@@ -144,10 +144,10 @@ public class QuestionService {
     public UserStatsDto getuserStats(UUID userId) {
         long total = userProgressRepository.countByUserId(userId);
         if (total == 0)
-            return new UserStatsDto(0, 0, 0, 0);
+            return new UserStatsDto(0, 0, 0, 0, false);
         long correct = userProgressRepository.countByUserIdAndIsCorrectTrue(userId);
         int rate = (int) (correct * 100 / total);
         long mastered = userProgressRepository.countDistinctQuestionIdByUserIdAndIsCorrectTrue(userId);
-        return new UserStatsDto(total, correct, rate, mastered);
+        return new UserStatsDto(total, correct, rate, mastered, true);
     }
 }
