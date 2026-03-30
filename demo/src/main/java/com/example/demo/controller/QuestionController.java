@@ -1,5 +1,7 @@
 package com.example.demo.controller;
 
+import com.example.demo.dto.response.DashboardResponse;
+import com.example.demo.dto.response.GenreDto;
 import com.example.demo.dto.response.QuestionResponse;
 import com.example.demo.dto.response.UserStatsDto;
 import com.example.demo.entity.Question;
@@ -10,6 +12,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -44,8 +47,10 @@ public class QuestionController {
 
     // 4. 統計データ取得
     @GetMapping("/stats/{userId}")
-    public ResponseEntity<UserStatsDto> getUserStats(@PathVariable UUID userId) {
-        return ResponseEntity.ok(questionService.getuserStats(userId));
+    public DashboardResponse getUserStats(@PathVariable UUID userId) {
+        UserStatsDto stats = questionService.getUserStats(userId);
+        Map<String, List<GenreDto>> genres = questionService.getGenreStats(userId);
+        return new DashboardResponse(stats, genres);
     }
 
 }

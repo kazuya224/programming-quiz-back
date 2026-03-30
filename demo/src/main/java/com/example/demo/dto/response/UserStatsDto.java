@@ -1,9 +1,21 @@
 package com.example.demo.dto.response;
 
 public record UserStatsDto(
-                long totalAnswers, // 総解答数
-                long correctAnswers, // 正解数
-                int accuracyRate, // 正解率（%）
-                long masteredCount, // 習得済み（例：正解したユニークな問題数）
+                // 今日
+                int todayCount,
+
+                // 継続
+                int streak,
+
+                // 今週
+                WeekStats thisWeek,
+
+                // 前週
+                WeekStats lastWeek,
+
+                // 変化
+                DiffStats diff,
+
+                // 再開
                 boolean hasResume) {
 }

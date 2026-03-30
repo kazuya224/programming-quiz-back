@@ -65,30 +65,4 @@ public class AnswerService {
                                 })
                                 .toList();
         }
-
-        // 3. 統計（ダッシュボード等で活用できる仕組み）
-        public Map<String, Object> calculateStats(UUID userId) {
-                List<UserProgress> logs = userProgressRepository.findByUserIdOrderByAnsweredAtDesc(userId);
-
-                long totalAnswers = logs.size();
-                // boolean型のゲッター名はLombokの設定により isCorrect() か getIsCorrect() になります
-                long correctAnswers = logs.stream()
-                                .filter(UserProgress::isCorrect)
-                                .count();
-
-                // 「正解」かつ「自信あり（例：confidence=2）」の数を集計
-                long confidentCorrect = logs.stream()
-                                .filter(l -> l.isCorrect() && l.getConfidence() == 2)
-                                .count();
-
-                double accuracyRate = totalAnswers > 0 ? (double) correctAnswers / totalAnswers * 100 : 0;
-
-                Map<String, Object> stats = new HashMap<>();
-                stats.put("totalAnswers", totalAnswers);
-                stats.put("correctAnswers", correctAnswers);
-                stats.put("accuracyRate", Math.round(accuracyRate));
-                stats.put("masteredCount", confidentCorrect); // 自信を持って正解した数
-
-                return stats;
-        }
 }

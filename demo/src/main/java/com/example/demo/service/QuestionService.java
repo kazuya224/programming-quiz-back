@@ -8,17 +8,30 @@ import org.springframework.stereotype.Service;
 import com.example.demo.repository.OptionRepository;
 import com.example.demo.repository.QuestionRepository;
 import com.example.demo.repository.UserProgressRepository;
+import com.example.demo.repository.projection.GenreStatsProjection;
 
 import lombok.RequiredArgsConstructor;
 
+import com.example.demo.dto.response.DiffStats;
+import com.example.demo.dto.response.GenreDto;
 import com.example.demo.dto.response.OptionDto;
 import com.example.demo.dto.response.QuestionDto;
 import com.example.demo.dto.response.QuestionResponse;
 import com.example.demo.dto.response.UserStatsDto;
+import com.example.demo.dto.response.WeekStats;
 import com.example.demo.entity.Question;
 import com.example.demo.entity.UserProgress;
 
+import java.time.DayOfWeek;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
@@ -28,6 +41,7 @@ import java.util.stream.Collectors;
 public class QuestionService {
     private final QuestionRepository questionRepository;
     private final UserProgressRepository userProgressRepository;
+    private static final ZoneId JST = ZoneId.of("Asia/Tokyo");
 
     // 1. ページングされた問題取得 (/api/questions)
     public QuestionResponse getQuestions(String language, int page, int size) {
@@ -141,13 +155,108 @@ public class QuestionService {
     }
 
     // 5. 統計データ取得（/api/questions/stats/{userId}）
-    public UserStatsDto getuserStats(UUID userId) {
-        long total = userProgressRepository.countByUserId(userId);
-        if (total == 0)
-            return new UserStatsDto(0, 0, 0, 0, false);
-        long correct = userProgressRepository.countByUserIdAndIsCorrectTrue(userId);
-        int rate = (int) (correct * 100 / total);
-        long mastered = userProgressRepository.countDistinctQuestionIdByUserIdAndIsCorrectTrue(userId);
-        return new UserStatsDto(total, correct, rate, mastered, true);
+    public UserStatsDto getUserStats(UUID userId) {
+
+        // 今日
+        LocalDate today = LocalDate.now(JST);
+        Instant startOfToday = today.atStartOfDay(JST).toInstant();
+        Instant endOfToday = today.plusDays(1).atStartOfDay(JST).toInstant();
+        LocalDateTime start = LocalDateTime.ofInstant(startOfToday, ZoneOffset.UTC);
+        LocalDateTime end = LocalDateTime.ofInstant(endOfToday, ZoneOffset.UTC);
+        int todayCount = (int) userProgressRepository.countByPeriod(userId, start, end);
+
+        // 今週
+        LocalDate startOfWeekDate = today.with(DayOfWeek.MONDAY);
+        Instant startOfWeekInstant = startOfWeekDate.atStartOfDay(JST).toInstant();
+        Instant endOfThisWeekInstant = today.plusDays(1).atStartOfDay(JST).toInstant();
+        LocalDateTime endOfThisWeek = LocalDateTime.ofInstant(endOfThisWeekInstant, ZoneOffset.UTC);
+
+        // 前週
+        Instant startOfLastWeekInstant = startOfWeekDate.minusWeeks(1).atStartOfDay(JST).toInstant();
+        Instant endOfLastWeekInstant = startOfWeekInstant;
+
+        // LocalDateTimeに変換（DBと合わせる為）
+        LocalDateTime startOfWeek = LocalDateTime.ofInstant(startOfWeekInstant, ZoneOffset.UTC);
+        LocalDateTime startOfLastWeek = LocalDateTime.ofInstant(startOfLastWeekInstant, ZoneOffset.UTC);
+        LocalDateTime endOfLastWeek = LocalDateTime.ofInstant(endOfLastWeekInstant, ZoneOffset.UTC);
+
+        // 今週データ
+        int thisTotal = (int) userProgressRepository.countByPeriod(userId, startOfWeek, endOfThisWeek);
+        int thisCorrect = (int) userProgressRepository.countCorrectByPeriod(userId, startOfWeek, endOfThisWeek);
+        int thisAccuracy = calcRate(thisCorrect, thisTotal);
+
+        // 前週データ
+        int lastTotal = (int) userProgressRepository.countByPeriod(userId, startOfLastWeek, endOfLastWeek);
+        int lastCorrect = (int) userProgressRepository.countCorrectByPeriod(userId, startOfLastWeek, endOfLastWeek);
+        int lastAccuracy = calcRate(lastCorrect, lastTotal);
+
+        // 差分
+        int totalDiff = thisTotal - lastTotal;
+        int accuracyDiff = thisAccuracy - lastAccuracy;
+
+        // streak(JSTベース)
+        int streak = calculateStreak(userId, today);
+
+        // 再開
+        long totalCount = userProgressRepository.countByUserId(userId);
+        boolean hasResume = totalCount > 0;
+
+        return new UserStatsDto(
+                todayCount,
+                streak,
+                new WeekStats(thisTotal, thisCorrect, thisAccuracy),
+                new WeekStats(lastTotal, lastCorrect, lastAccuracy),
+                new DiffStats(totalDiff, accuracyDiff),
+                hasResume);
     }
+
+    // 正解率
+    private int calcRate(int correct, int total) {
+        if (total == 0)
+            return 0;
+        return (int) ((double) correct / total * 100);
+    }
+
+    // streak計算
+    private int calculateStreak(UUID userId, LocalDate today) {
+        List<LocalDate> days = userProgressRepository.findAnsweredDatesJST(userId);
+        int streak = 1;
+        for (LocalDate day : days) {
+            if (day.equals(today.minusDays(streak))) {
+                streak++;
+            } else {
+                break;
+            }
+        }
+        return streak;
+    }
+
+    // ダッシュボードに言語、ジャンル表示
+    public Map<String, List<GenreDto>> getGenreStats(UUID userId) {
+        List<GenreStatsProjection> results = userProgressRepository.getGenreStats(userId);
+        Map<String, GenreStatsProjection> resultMap = new HashMap<>();
+        for (GenreStatsProjection r : results) {
+            resultMap.put(r.getLanguage() + "-" + r.getGenre(), r);
+        }
+        Map<String, List<GenreDto>> finalMap = new HashMap<>();
+        genreMaster.forEach((language, genres) -> {
+            List<GenreDto> list = new ArrayList<>();
+            for (String genre : genres) {
+                String key = language + "-" + genre;
+                GenreStatsProjection r = resultMap.get(key);
+                long total = r != null ? r.getTotalCount() : 0;
+                long correct = r != null ? r.getCorrectCount() : 0;
+
+                Double accuracy = total > 0 ? (double) correct / total : null;
+
+                list.add(new GenreDto(genre, accuracy, total, correct));
+            }
+            finalMap.put(language, list);
+        });
+        return finalMap;
+    }
+
+    private static final Map<String, List<String>> genreMaster = Map.of(
+            "Java", List.of("文法", "Spring", "コレクション"),
+            "JavaScript", List.of("非同期処理", "DOM"));
 }
