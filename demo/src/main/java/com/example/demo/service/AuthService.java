@@ -2,12 +2,21 @@ package com.example.demo.service;
 
 import com.example.demo.entity.User;
 import com.example.demo.repository.UserRepository;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
+import com.google.api.client.http.javanet.NetHttpTransport;
+import com.google.api.client.json.jackson2.JacksonFactory;
 import com.example.demo.dto.SignupRequest; // 追加
+import com.example.demo.dto.response.GoogleLoginResponse;
+
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,27 +28,59 @@ public class AuthService {
     private final UserRepository userRepository;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
-    // ログイン（既存）
-    public Optional<User> login(String userName, String password) {
-        return userRepository.findByUserName(userName)
-                .filter(user -> passwordEncoder.matches(password, user.getPassword()));
-    }
+    public GoogleLoginResponse googleLogin(String token) {
+        GoogleIdToken.Payload payload = verifyToken(token);
 
-    // 【新規】アカウント作成
-    @Transactional
-    public User signup(SignupRequest request) {
-        // 1. 名前で検索し、リストとして取得する（1件以上あってもエラーにならないようにする）
-        List<User> existingUsers = userRepository.findAllByUserName(request.getUserName());
+        String googleId = payload.getSubject();
+        String email = payload.getEmail();
 
-        // 2. 1件でも存在すれば、登録を拒否する
-        if (!existingUsers.isEmpty()) {
-            throw new RuntimeException("このユーザー名は既に使用されています。別の名前を試してください。");
+        Optional<User> userOpt = userRepository.findByEmail(email);
+
+        if (userOpt.isPresent()) {
+            User user = userOpt.get();
+
+            if (user.getGoogleId() == null) {
+                user.setGoogleId(googleId);
+                userRepository.save(user);
+            }
+
+            return new GoogleLoginResponse(
+                    user.getUserId(),
+                    user.getUserName() == null);
         }
 
         User newUser = new User();
-        newUser.setUserName(request.getUserName());
-        newUser.setPassword(passwordEncoder.encode(request.getPassword()));
+        newUser.setEmail(email);
+        newUser.setUserName(null);
+        newUser.setGoogleId(googleId);
 
-        return userRepository.save(newUser);
+        userRepository.save(newUser);
+
+        return new GoogleLoginResponse(
+                newUser.getUserId(),
+                true);
+    }
+
+    private GoogleIdToken.Payload verifyToken(String idTokeString) {
+        try {
+            GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier.Builder(new NetHttpTransport(),
+                    new JacksonFactory())
+                    .setAudience(Collections
+                            .singletonList("450998180907-r7r2loc02s1gghfmf76tgtc0lnkdpcog.apps.googleusercontent.com"))
+                    .build();
+            GoogleIdToken idToken = verifier.verify(idTokeString);
+            if (idToken == null) {
+                throw new RuntimeException("Invalid token");
+            }
+            return idToken.getPayload();
+        } catch (Exception e) {
+            throw new RuntimeException("Token verification failed", e);
+        }
+    }
+
+    public void updateUserName(UUID userId, String userName) {
+        User user = userRepository.findById(userId).orElseThrow(() -> new RuntimeException("ユーザーが見つかりません"));
+        user.setUserName(userName);
+        userRepository.save(user);
     }
 }

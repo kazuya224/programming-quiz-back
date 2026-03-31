@@ -18,12 +18,14 @@ public class User {
     @Column(name = "user_id", updatable = false, nullable = false)
     private UUID userId;
 
-    @Column(name = "user_name", nullable = false, length = 64)
+    @Column(name = "user_name", length = 64)
     private String userName;
 
-    // セキュリティ上の仕組み：ハッシュ化されたパスワードを保存することを想定
-    @Column(name = "password", nullable = false, length = 64)
-    private String password;
+    @Column(name = "email", nullable = false, unique = true)
+    private String email;
+
+    @Column(name = "google_id", nullable = false, unique = true)
+    private String googleId;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
