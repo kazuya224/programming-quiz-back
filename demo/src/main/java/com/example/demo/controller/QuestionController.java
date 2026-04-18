@@ -35,14 +35,18 @@ public class QuestionController {
 
     // 2. 間違えた問題だけ取得
     @GetMapping("/mistakes")
-    public ResponseEntity<List<Question>> getMistakes(@RequestParam UUID userId) {
-        return ResponseEntity.ok(questionService.getMistakenQuestions(userId));
+    public ResponseEntity<QuestionResponse> getIncorrectQuestions(@RequestParam UUID userId,
+            @RequestParam(required = false) String genre,
+            @RequestParam String language, @RequestParam int page, @RequestParam int size) {
+        return ResponseEntity.ok(questionService.getIncorrectQuestions(userId, genre, language, page, size));
     }
 
     // 3. 途中から再開
     @GetMapping("/resume")
-    public ResponseEntity<QuestionResponse> resume(@RequestParam UUID userId, @RequestParam int limit) {
-        return ResponseEntity.ok(questionService.resumeQuestions(userId, limit));
+    public ResponseEntity<QuestionResponse> resume(@RequestParam UUID userId,
+            @RequestParam(required = false) String genre, @RequestParam String language, @RequestParam int page,
+            @RequestParam int limit) {
+        return ResponseEntity.ok(questionService.resumeQuestions(userId, genre, language, page, limit));
     }
 
     // 4. 統計データ取得

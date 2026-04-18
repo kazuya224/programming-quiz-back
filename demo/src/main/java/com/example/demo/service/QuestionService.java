@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import com.example.demo.repository.OptionRepository;
 import com.example.demo.repository.QuestionRepository;
 import com.example.demo.repository.UserProgressRepository;
+import com.example.demo.repository.projection.GenreMasterProjection;
 import com.example.demo.repository.projection.GenreStatsProjection;
 
 import lombok.RequiredArgsConstructor;
@@ -32,6 +33,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
@@ -96,61 +98,71 @@ public class QuestionService {
     }
 
     // 3. 間違えた問題だけ取得 (/api/questions/mistakes)
-    public List<Question> getMistakenQuestions(UUID userId) {
-        List<UUID> ids = userProgressRepository.findDistinctQuestionIdsByUserIdAndIsCorrectFalse(userId);
-        return questionRepository.findAllById(ids);
+    public QuestionResponse getIncorrectQuestions(UUID userId, String genre, String language, int page, int size) {
+        // 1. ジャンルが空文字や特定のキーワード（"all"など）ならnullに変換して全件対象にする
+        String genreParam = (genre == null || genre.isEmpty() || "all".equalsIgnoreCase(genre)) ? null : genre;
+
+        // 2. Repositoryを呼び出し
+        Page<Question> questionPage = userProgressRepository.findIncorrectQuestionsByUserId(
+                userId, genreParam, language, PageRequest.of(page, size));
+
+        // 3. 既存の convertToDto を再利用して変換
+        List<QuestionDto> dtos = questionPage.getContent().stream()
+                .map(this::convertToDto)
+                .collect(Collectors.toList());
+
+        // 4. 普通の問題取得と同じレスポンス形式で返却
+        QuestionResponse response = new QuestionResponse();
+        response.setQuestions(dtos);
+        response.setHasMore(questionPage.hasNext());
+        response.setNextCursor(questionPage.hasNext() ? page + 1 : null);
+
+        return response;
     }
 
     // 4. 途中から再開 (/api/questions/resume)
-    // 最後に解いた問題の「次」から取得するロジックの雛形
-    public QuestionResponse resumeQuestions(UUID userId, int limit) {
-        // 1. ユーザーの最新の解答履歴を取得
-        Page<Question> page = userProgressRepository.findFirstByUserIdOrderByAnsweredAtDesc(userId)
-                .map(lastLog -> {
-                    // 2. その問題の seq 番号を特定する（Historyにseqを持たせていない場合はQuestionを引く）
-                    Integer lastSeq = questionRepository.findById(lastLog.getQuestionId())
-                            .map(Question::getSeq)
-                            .orElse(0);
+    public QuestionResponse resumeQuestions(UUID userId, String genre, String language, int page, int limit) {
+        // 1. ジャンルが "all" や空文字の場合は null として扱う（仕組み化の共通処理）
+        String genreParam = (genre == null || genre.isEmpty() || "all".equalsIgnoreCase(genre)) ? null : genre;
 
-                    // 3. 最後に解いた seq より大きい問題を、seq順に limit件 取得する
-                    return questionRepository.findBySeqGreaterThanOrderBySeqAsc(
-                            lastSeq,
-                            PageRequest.of(0, limit));
-                })
-                // 履歴がない場合は最初（seq=0より大きいもの）から開始
-                .orElse(questionRepository.findBySeqGreaterThanOrderBySeqAsc(0, PageRequest.of(0, limit)));
-        List<QuestionDto> dtoList = page.getContent().stream().map(q -> {
-            QuestionDto qDto = new QuestionDto();
-            qDto.setQuestionId(q.getQuestionId());
-            qDto.setQuestionText(q.getQuestionText());
-            qDto.setCodeSnippet(q.getCodeSnippet());
-            qDto.setTitle(q.getTitle());
-            qDto.setExplanation(q.getExplanation());
-            qDto.setLanguage(q.getLanguage());
-            qDto.setGenre(q.getGenre());
-            qDto.setDifficultyLevel(q.getDifficultyLevel());
+        // 2. 指定された「言語」かつ「ジャンル」で、ユーザーの最新の解答履歴を1件取得
+        // ※リポジトリにこの条件（genre含む）のメソッドを追加する必要があります
+        Optional<UserProgress> lastLogOpt = userProgressRepository
+                .findFirstByUserIdAndQuestionLanguageAndQuestionGenreOrderByAnsweredAtDesc(userId, language,
+                        genreParam);
 
-            List<OptionDto> oDtos = q.getOptions().stream().map(o -> {
-                OptionDto oDto = new OptionDto();
-                oDto.setOptionId(o.getOptionId());
-                oDto.setOptionText(o.getOptionText());
-                oDto.setOptionOrder(o.getOptionOrder());
-                oDto.setCorrect(o.isCorrect());
-                return oDto;
-            }).toList();
+        Page<Question> questionPage;
+        // フロントから page が届く設計ならそれを使いますが、通常 Resume は 0ページ目から「続き」を取得します
+        PageRequest pageRequest = PageRequest.of(page, limit);
 
-            qDto.setOptions(oDtos);
+        if (lastLogOpt.isPresent()) {
+            // 3. 履歴がある場合：その問題の seq より大きい問題を、条件を絞って取得
+            UserProgress lastLog = lastLogOpt.get();
+            Integer lastSeq = lastLog.getQuestion().getSeq();
 
-            return qDto;
-        }).toList();
+            questionPage = questionRepository.findByLanguageAndGenreAndSeqGreaterThanOrderBySeqAsc(
+                    language, genreParam, lastSeq, pageRequest);
+        } else {
+            // 4. 履歴がない場合：その条件の最初（seq=0より大きいもの）から開始
+            questionPage = questionRepository.findByLanguageAndGenreAndSeqGreaterThanOrderBySeqAsc(
+                    language, genreParam, 0, pageRequest);
+        }
 
+        // 5. 既存の convertToDto を再利用して DTO リストを作成
+        List<QuestionDto> dtoList = questionPage.getContent().stream()
+                .map(this::convertToDto)
+                .collect(Collectors.toList());
+
+        // 6. レスポンスの構築
         QuestionResponse response = new QuestionResponse();
         response.setQuestions(dtoList);
-        response.setHasMore(page.hasNext());
+        response.setHasMore(questionPage.hasNext());
 
-        if (page.hasContent()) {
-            response.setNextCursor(page.getContent().get(page.getContent().size() - 1).getSeq());
+        if (questionPage.hasContent()) {
+            // 次回の続き番号（seq）をセット
+            response.setNextCursor(questionPage.getContent().get(questionPage.getContent().size() - 1).getSeq());
         }
+
         return response;
     }
 
@@ -233,30 +245,63 @@ public class QuestionService {
 
     // ダッシュボードに言語、ジャンル表示
     public Map<String, List<GenreDto>> getGenreStats(UUID userId) {
-        List<GenreStatsProjection> results = userProgressRepository.getGenreStats(userId);
-        Map<String, GenreStatsProjection> resultMap = new HashMap<>();
-        for (GenreStatsProjection r : results) {
-            resultMap.put(r.getLanguage() + "-" + r.getGenre(), r);
+        // ① ユーザーの進捗を取得（すでに解いた問題の統計）
+        List<GenreStatsProjection> userResults = userProgressRepository.getGenreStats(userId);
+        Map<String, GenreStatsProjection> userResultMap = new HashMap<>();
+        for (GenreStatsProjection r : userResults) {
+            userResultMap.put(r.getLanguage() + "-" + r.getGenre(), r);
         }
+
+        // ② DBにある「全問題数」を取得（解いていない問題も含むカウント）
+        List<GenreDto> allTotalCounts = questionRepository.findAllTotalCounts();
+        // 言語を特定するために、Questionエンティティにlanguageがある前提でMap化
+        // ※クエリに language を含めるように修正が必要かもしれません。
+        // ここでは一旦、ジャンル名をキーにします。
+        Map<String, Long> totalMap = allTotalCounts.stream()
+                .collect(Collectors.toMap(
+                        dto -> dto.language() + "-" + dto.genre(),
+                        GenreDto::totalCount));
+
         Map<String, List<GenreDto>> finalMap = new HashMap<>();
-        genreMaster.forEach((language, genres) -> {
+
+        getGenreMasterFromDb().forEach((language, genres) -> {
             List<GenreDto> list = new ArrayList<>();
             for (String genre : genres) {
                 String key = language + "-" + genre;
-                GenreStatsProjection r = resultMap.get(key);
-                long total = r != null ? r.getTotalCount() : 0;
-                long correct = r != null ? r.getCorrectCount() : 0;
 
-                Double accuracy = total > 0 ? (double) correct / total : null;
+                // ユーザーの統計（解いた数、正解数）
+                GenreStatsProjection userStat = userResultMap.get(key);
+                long answeredCount = userStat != null ? userStat.getTotalCount() : 0;
+                long correctCount = userStat != null ? userStat.getCorrectCount() : 0;
 
-                list.add(new GenreDto(genre, accuracy, total, correct));
+                // DB上の「全問題数」
+                // totalMapから取得するか、もしなければ0にする
+                long totalInDb = totalMap.getOrDefault(language + "-" + genre, 0L);
+
+                // 正答率の計算
+                Double accuracy = answeredCount > 0 ? (double) correctCount / answeredCount : null;
+
+                // recordのコンパクトな記述でDTOを作成
+                list.add(new GenreDto(genre, language, accuracy, totalInDb, correctCount));
             }
             finalMap.put(language, list);
         });
+
         return finalMap;
     }
 
-    private static final Map<String, List<String>> genreMaster = Map.of(
-            "Java", List.of("文法", "Spring", "コレクション"),
-            "JavaScript", List.of("非同期処理", "DOM"));
+    private Map<String, List<String>> getGenreMasterFromDb() {
+        List<GenreMasterProjection> results = questionRepository.findAllLanguagesAndGenres();
+
+        return results.stream()
+                .filter(x -> x.getLanguage() != null && x.getGenre() != null)
+                .collect(Collectors.groupingBy(
+                        GenreMasterProjection::getLanguage,
+                        Collectors.mapping(
+                                GenreMasterProjection::getGenre,
+                                Collectors.collectingAndThen(
+                                        Collectors.toSet(), // 重複排除
+                                        ArrayList::new // Listに戻す
+                                ))));
+    }
 }
