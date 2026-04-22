@@ -84,17 +84,23 @@ public interface UserProgressRepository extends JpaRepository<UserProgress, UUID
         long countByUserId(UUID userId);
 
         // ダッシュボードで言語、ジャンルを表示
-        @Query("""
-                                       SELECT
-                        q.language as language,
-                        q.genre as genre,
-                        COUNT(up) as totalCount,
-                        SUM(CASE WHEN up.isCorrect = true THEN 1 ELSE 0 END) as correctCount
-                            FROM UserProgress up
-                            JOIN up.question q
-                            WHERE up.userId =:userId
+        @Query(value = """
+                            SELECT
+                                q.language as language,
+                                q.genre as genre,
+                                COUNT(*) as totalCount,
+                                SUM(CASE WHEN up.is_correct THEN 1 ELSE 0 END) as correctCount
+                            FROM (
+                                SELECT DISTINCT ON (question_id)
+                                    question_id,
+                                    is_correct
+                                FROM user_progress
+                                WHERE user_id = :userId
+                                ORDER BY question_id, answered_at DESC
+                            ) up
+                            JOIN questions q ON q.question_id = up.question_id
                             GROUP BY q.language, q.genre
-                                        """)
+                        """, nativeQuery = true)
         List<GenreStatsProjection> getGenreStats(UUID userId);
 
         @Query("SELECT q.language as language, q.genre as genre, COUNT(q) as totalCount " + // ← ここ！
