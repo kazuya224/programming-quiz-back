@@ -11,4 +11,6 @@ public interface OptionRepository extends JpaRepository<Option, UUID> {
 
     List<Option> findByQuestionIdOrderByOptionOrderAsc(UUID questionId);
 
+    List<Option> findByQuestionIdIn(List<UUID> questionIds);
+
 }

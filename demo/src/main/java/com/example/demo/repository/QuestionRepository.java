@@ -1,11 +1,13 @@
 package com.example.demo.repository;
 
+import com.example.demo.entity.Option;
 import com.example.demo.entity.Question;
 import com.example.demo.dto.response.GenreDto;
 import com.example.demo.repository.projection.GenreMasterProjection;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable; // ← ここが重要
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -37,4 +39,5 @@ public interface QuestionRepository extends JpaRepository<Question, UUID> {
                         @Param("genre") String genre,
                         @Param("seq") Integer seq,
                         Pageable pageable);
+
 }

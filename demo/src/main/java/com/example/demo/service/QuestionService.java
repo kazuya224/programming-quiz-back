@@ -20,6 +20,7 @@ import com.example.demo.dto.response.QuestionDto;
 import com.example.demo.dto.response.QuestionResponse;
 import com.example.demo.dto.response.UserStatsDto;
 import com.example.demo.dto.response.WeekStats;
+import com.example.demo.entity.Option;
 import com.example.demo.entity.Question;
 import com.example.demo.entity.UserProgress;
 
@@ -43,45 +44,63 @@ import java.util.stream.Collectors;
 public class QuestionService {
     private final QuestionRepository questionRepository;
     private final UserProgressRepository userProgressRepository;
+    private final OptionRepository optionRepository;
     private static final ZoneId JST = ZoneId.of("Asia/Tokyo");
 
     // 1. ページングされた問題取得 (/api/questions)
     public QuestionResponse getQuestions(String language, int page, int size) {
-        // 1. DBからEntityのページを取得
+        // 1. DBからQuestion Entityのページを取得 (クエリ1回目)
+        // リポジトリ側で @EntityGraph を外しているため、ここでは options は Lazy 状態
         Page<Question> questionPage = questionRepository.findByLanguage(language, PageRequest.of(page, size));
+        List<Question> questions = questionPage.getContent();
 
-        // 2. Entityのリストを DTO(QuestionDto) のリストに変換
-        List<QuestionDto> dtos = questionPage.getContent().stream()
-                .map(this::convertToDto)
+        if (questions.isEmpty()) {
+            return new QuestionResponse(new ArrayList<>(), null, false);
+        }
+
+        // 2. 取得した問題のIDリストを作成
+        List<UUID> questionIds = questions.stream()
+                .map(Question::getQuestionId)
                 .collect(Collectors.toList());
 
-        // 3. 最終的なレスポンス型に詰める
+        // 3. 該当する選択肢をすべて一括取得 (クエリ2回目)
+        // リポジトリの findByQuestionIn(questionIds) または相当するメソッドを使用
+        List<Option> allOptions = optionRepository.findByQuestionIdIn(questionIds);
+
+        // 4. 親の QuestionID をキーにした Map に分類
+        Map<UUID, List<Option>> optionMap = allOptions.stream()
+                .collect(Collectors.groupingBy(option -> option.getQuestionId()));
+
+        // 5. Entityのリストを DTO に変換（Mapから選択肢を渡す）
+        List<QuestionDto> dtos = questions.stream()
+                .map(q -> convertToDtoWithSubData(q, optionMap.getOrDefault(q.getQuestionId(), List.of())))
+                .collect(Collectors.toList());
+
+        // 6. レスポンス構築
         QuestionResponse response = new QuestionResponse();
         response.setQuestions(dtos);
         response.setHasMore(questionPage.hasNext());
-        // 次のページ番号をカーソルとして渡す（設計書のnextCursorに対応）
         response.setNextCursor(questionPage.hasNext() ? page + 1 : null);
-        System.out.println("レスポンス" + response);
 
         return response;
     }
 
-    // EntityからDTOへの詰め替え（仕組みの共通化）
-    private QuestionDto convertToDto(Question entity) {
+    // 修正版：外部から渡された options を使って DTO を組み立てる
+    private QuestionDto convertToDtoWithSubData(Question entity, List<Option> options) {
         QuestionDto dto = new QuestionDto();
         dto.setQuestionId(entity.getQuestionId());
         dto.setQuestionText(entity.getQuestionText());
         dto.setCodeSnippet(entity.getCodeSnippet());
         dto.setTitle(entity.getTitle());
         dto.setLanguage(entity.getLanguage());
-        dto.setExplanation(entity.getExplanation()); // これで解説が届くようになる
+        dto.setExplanation(entity.getExplanation());
         dto.setDifficultyLevel(entity.getDifficultyLevel());
 
-        // OptionsもDTOに変換
-        List<OptionDto> optionDtos = entity.getOptions().stream()
+        // 引数で受け取った options を DTO に変換
+        List<OptionDto> optionDtos = options.stream()
                 .map(option -> {
                     OptionDto oDto = new OptionDto();
-                    oDto.setOptionId(option.getOptionId()); // Stringに変換
+                    oDto.setOptionId(option.getOptionId());
                     oDto.setOptionText(option.getOptionText());
                     oDto.setOptionOrder(option.getOptionOrder());
                     oDto.setCorrect(option.isCorrect());
@@ -99,19 +118,39 @@ public class QuestionService {
 
     // 3. 間違えた問題だけ取得 (/api/questions/mistakes)
     public QuestionResponse getIncorrectQuestions(UUID userId, String genre, String language, int page, int size) {
-        // 1. ジャンルが空文字や特定のキーワード（"all"など）ならnullに変換して全件対象にする
+
         String genreParam = (genre == null || genre.isEmpty() || "all".equalsIgnoreCase(genre)) ? null : genre;
 
-        // 2. Repositoryを呼び出し
+        // ① Question取得（クエリ1回）
         Page<Question> questionPage = userProgressRepository.findIncorrectQuestionsByUserId(
                 userId, genreParam, language, PageRequest.of(page, size));
 
-        // 3. 既存の convertToDto を再利用して変換
-        List<QuestionDto> dtos = questionPage.getContent().stream()
-                .map(this::convertToDto)
+        List<Question> questions = questionPage.getContent();
+
+        if (questions.isEmpty()) {
+            return new QuestionResponse(new ArrayList<>(), null, false);
+        }
+
+        // ② QuestionIDリスト作成
+        List<UUID> questionIds = questions.stream()
+                .map(Question::getQuestionId)
                 .collect(Collectors.toList());
 
-        // 4. 普通の問題取得と同じレスポンス形式で返却
+        // ③ Option一括取得（クエリ2回目）
+        List<Option> allOptions = optionRepository.findByQuestionIdIn(questionIds);
+
+        // ④ Map化
+        Map<UUID, List<Option>> optionMap = allOptions.stream()
+                .collect(Collectors.groupingBy(option -> option.getQuestion().getQuestionId()));
+
+        // ⑤ DTO変換
+        List<QuestionDto> dtos = questions.stream()
+                .map(q -> convertToDtoWithSubData(
+                        q,
+                        optionMap.getOrDefault(q.getQuestionId(), new ArrayList<>())))
+                .collect(Collectors.toList());
+
+        // ⑥ レスポンス
         QuestionResponse response = new QuestionResponse();
         response.setQuestions(dtos);
         response.setHasMore(questionPage.hasNext());
@@ -122,45 +161,60 @@ public class QuestionService {
 
     // 4. 途中から再開 (/api/questions/resume)
     public QuestionResponse resumeQuestions(UUID userId, String genre, String language, int page, int limit) {
-        // 1. ジャンルが "all" や空文字の場合は null として扱う（仕組み化の共通処理）
+
         String genreParam = (genre == null || genre.isEmpty() || "all".equalsIgnoreCase(genre)) ? null : genre;
 
-        // 2. 指定された「言語」かつ「ジャンル」で、ユーザーの最新の解答履歴を1件取得
-        // ※リポジトリにこの条件（genre含む）のメソッドを追加する必要があります
         Optional<UserProgress> lastLogOpt = userProgressRepository
-                .findFirstByUserIdAndQuestionLanguageAndQuestionGenreOrderByAnsweredAtDesc(userId, language,
-                        genreParam);
+                .findFirstByUserIdAndQuestionLanguageAndQuestionGenreOrderByAnsweredAtDesc(
+                        userId, language, genreParam);
 
         Page<Question> questionPage;
-        // フロントから page が届く設計ならそれを使いますが、通常 Resume は 0ページ目から「続き」を取得します
         PageRequest pageRequest = PageRequest.of(page, limit);
 
         if (lastLogOpt.isPresent()) {
-            // 3. 履歴がある場合：その問題の seq より大きい問題を、条件を絞って取得
-            UserProgress lastLog = lastLogOpt.get();
-            Integer lastSeq = lastLog.getQuestion().getSeq();
+            Integer lastSeq = lastLogOpt.get().getQuestion().getSeq();
 
             questionPage = questionRepository.findByLanguageAndGenreAndSeqGreaterThanOrderBySeqAsc(
                     language, genreParam, lastSeq, pageRequest);
         } else {
-            // 4. 履歴がない場合：その条件の最初（seq=0より大きいもの）から開始
             questionPage = questionRepository.findByLanguageAndGenreAndSeqGreaterThanOrderBySeqAsc(
                     language, genreParam, 0, pageRequest);
         }
 
-        // 5. 既存の convertToDto を再利用して DTO リストを作成
-        List<QuestionDto> dtoList = questionPage.getContent().stream()
-                .map(this::convertToDto)
+        List<Question> questions = questionPage.getContent();
+
+        // ★ 空チェック（無駄クエリ防止）
+        if (questions.isEmpty()) {
+            return new QuestionResponse(new ArrayList<>(), null, false);
+        }
+
+        // ① QuestionID収集
+        List<UUID> questionIds = questions.stream()
+                .map(Question::getQuestionId)
                 .collect(Collectors.toList());
 
-        // 6. レスポンスの構築
+        // ② Option一括取得（これがN+1対策の本体）
+        List<Option> allOptions = optionRepository.findByQuestionIdIn(questionIds);
+
+        // ③ Map化
+        Map<UUID, List<Option>> optionMap = allOptions.stream()
+                .collect(Collectors.groupingBy(option -> option.getQuestion().getQuestionId()));
+
+        // ④ DTO変換
+        List<QuestionDto> dtoList = questions.stream()
+                .map(q -> convertToDtoWithSubData(
+                        q,
+                        optionMap.getOrDefault(q.getQuestionId(), new ArrayList<>())))
+                .collect(Collectors.toList());
+
+        // ⑤ レスポンス構築
         QuestionResponse response = new QuestionResponse();
         response.setQuestions(dtoList);
         response.setHasMore(questionPage.hasNext());
 
         if (questionPage.hasContent()) {
-            // 次回の続き番号（seq）をセット
-            response.setNextCursor(questionPage.getContent().get(questionPage.getContent().size() - 1).getSeq());
+            response.setNextCursor(
+                    questions.get(questions.size() - 1).getSeq());
         }
 
         return response;
