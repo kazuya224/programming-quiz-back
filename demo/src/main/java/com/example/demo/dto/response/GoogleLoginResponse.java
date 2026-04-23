@@ -4,19 +4,25 @@ import java.util.UUID;
 
 public class GoogleLoginResponse {
 
-    private UUID userId;
+    private String token;
     private boolean isNewUser;
+    private String userName;
 
-    public GoogleLoginResponse(UUID userId, boolean isNewUser) {
-        this.userId = userId;
+    public GoogleLoginResponse(String token, boolean isNewUser, String userName) {
+        this.token = token;
         this.isNewUser = isNewUser;
+        this.userName = userName;
     }
 
-    public UUID getUserId() {
-        return userId;
+    public String getToken() {
+        return token;
     }
 
     public boolean isNewUser() {
         return isNewUser;
+    }
+
+    public String getUserName() {
+        return userName;
     }
 }

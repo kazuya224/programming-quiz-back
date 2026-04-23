@@ -1,5 +1,6 @@
 package com.example.demo.repository;
 
+import java.lang.foreign.Linker.Option;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -14,4 +15,6 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     List<User> findAllByUserName(String userName);
 
     Optional<User> findByEmail(String email);
+
+    Optional<User> findByGoogleId(String googleId);
 }

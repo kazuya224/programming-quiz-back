@@ -13,6 +13,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
+
 @RestController
 @RequestMapping("/api/answers")
 @RequiredArgsConstructor
@@ -32,8 +35,12 @@ public class AnswerController {
     }
 
     // 2. 解答履歴取得
-    @GetMapping("/history/{userId}")
-    public ResponseEntity<List<AnswerHistoryResponse>> getHistory(@PathVariable UUID userId) {
+    @GetMapping("/history")
+    public ResponseEntity<List<AnswerHistoryResponse>> getHistory(
+            @AuthenticationPrincipal Jwt jwt) {
+
+        UUID userId = UUID.fromString(jwt.getSubject());
+
         return ResponseEntity.ok(answerService.getHistoryByUserId(userId));
     }
 }

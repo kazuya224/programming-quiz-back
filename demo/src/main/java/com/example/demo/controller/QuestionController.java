@@ -9,6 +9,7 @@ import com.example.demo.service.QuestionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -16,6 +17,7 @@ import java.util.Map;
 import java.util.UUID;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.security.oauth2.jwt.Jwt;
 
 @RestController
 @RequestMapping("/api/questions")
@@ -50,10 +52,14 @@ public class QuestionController {
     }
 
     // 4. 統計データ取得
-    @GetMapping("/stats/{userId}")
-    public DashboardResponse getUserStats(@PathVariable UUID userId) {
+    @GetMapping("/stats")
+    public DashboardResponse getUserStats(@AuthenticationPrincipal Jwt jwt) {
+
+        UUID userId = UUID.fromString(jwt.getSubject());
+
         UserStatsDto stats = questionService.getUserStats(userId);
         Map<String, List<GenreDto>> genres = questionService.getGenreStats(userId);
+
         return new DashboardResponse(stats, genres);
     }
 

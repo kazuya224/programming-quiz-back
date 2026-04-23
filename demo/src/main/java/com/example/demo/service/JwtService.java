@@ -1,0 +1,37 @@
+package com.example.demo.service;
+
+import io.jsonwebtoken.*;
+import io.jsonwebtoken.security.Keys;
+import org.springframework.stereotype.Service;
+
+import java.security.Key;
+import java.util.Date;
+import java.util.UUID;
+
+@Service
+public class JwtService {
+
+    private final Key key = Keys.hmacShaKeyFor(
+            "my-super-secret-key-my-super-secret-key".getBytes());
+
+    // トークン生成
+    public String generateToken(UUID userId) {
+        return Jwts.builder()
+                .setSubject(userId.toString())
+                .setIssuedAt(new Date())
+                .setExpiration(new Date(System.currentTimeMillis() + 1000 * 60 * 60 * 24)) // 24時間
+                .signWith(key, SignatureAlgorithm.HS256)
+                .compact();
+    }
+
+    // トークンからuserId取得
+    public UUID extractUserId(String token) {
+        Claims claims = Jwts.parserBuilder()
+                .setSigningKey(key)
+                .build()
+                .parseClaimsJws(token)
+                .getBody();
+
+        return UUID.fromString(claims.getSubject());
+    }
+}
