@@ -11,6 +11,8 @@ import com.example.demo.dto.response.GoogleLoginResponse;
 import com.example.demo.service.JwtService;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
+
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 import java.util.Collections;
@@ -29,6 +31,9 @@ public class AuthService {
     private final UserRepository userRepository;
     private final BCryptPasswordEncoder passwordEncoder;
     private final JwtService jwtService;
+
+    @Value("${google.client-id}")
+    private String clientId;
 
     public GoogleLoginResponse googleLogin(String token) {
         GoogleIdToken.Payload payload = verifyToken(token);
@@ -64,19 +69,24 @@ public class AuthService {
                 newUser.getUserName());
     }
 
-    private GoogleIdToken.Payload verifyToken(String idTokeString) {
+    private GoogleIdToken.Payload verifyToken(String idTokenString) {
         try {
-            GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier.Builder(new NetHttpTransport(),
+            GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier.Builder(
+                    new NetHttpTransport(),
                     new JacksonFactory())
-                    .setAudience(Collections
-                            .singletonList("450998180907-r7r2loc02s1gghfmf76tgtc0lnkdpcog.apps.googleusercontent.com"))
+                    .setAudience(Collections.singletonList(clientId))
                     .build();
-            GoogleIdToken idToken = verifier.verify(idTokeString);
+
+            GoogleIdToken idToken = verifier.verify(idTokenString);
+
             if (idToken == null) {
                 throw new RuntimeException("Invalid token");
             }
+
             return idToken.getPayload();
+
         } catch (Exception e) {
+            e.printStackTrace(); // ←重要
             throw new RuntimeException("Token verification failed", e);
         }
     }
