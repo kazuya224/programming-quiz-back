@@ -55,7 +55,7 @@ public class Question {
     private String explanation;
 
     @Column(name = "seq")
-    private int seq;
+    private Long seq;
 
     @OneToMany(mappedBy = "question", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<Option> options;

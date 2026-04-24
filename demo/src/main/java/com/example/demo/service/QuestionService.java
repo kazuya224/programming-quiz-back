@@ -48,44 +48,59 @@ public class QuestionService {
     private static final ZoneId JST = ZoneId.of("Asia/Tokyo");
 
     // 1. ページングされた問題取得 (/api/questions)
-    public QuestionResponse getQuestions(String language, int page, int size) {
-        // 1. DBからQuestion Entityのページを取得 (クエリ1回目)
-        // リポジトリ側で @EntityGraph を外しているため、ここでは options は Lazy 状態
-        Page<Question> questionPage = questionRepository.findByLanguage(language, PageRequest.of(page, size));
-        List<Question> questions = questionPage.getContent();
+    public QuestionResponse getQuestions(String language, Long cursor, int size) {
+        // 1. Repository呼び出し：cursorの有無でクエリを分岐 (指摘②)
+        List<Question> questions;
+        // PageRequest.of(0, size) を使うことで LIMIT size だけを発行し、OFFSETを避ける
+        if (cursor == null) {
+            questions = questionRepository.findByLanguageOrderBySeqAsc(
+                    language, PageRequest.of(0, size));
+        } else {
+            questions = questionRepository.findByLanguageAndSeqGreaterThanOrderBySeqAsc(
+                    language, cursor, PageRequest.of(0, size));
+        }
 
+        // 取得結果が空の場合の早期リターン
         if (questions.isEmpty()) {
             return new QuestionResponse(new ArrayList<>(), null, false);
         }
 
-        // 2. 取得した問題のIDリストを作成
+        // 2. 取得した問題のIDリストを作成（N+1回避の準備：ここは継続してGood!）
         List<UUID> questionIds = questions.stream()
                 .map(Question::getQuestionId)
                 .collect(Collectors.toList());
 
-        // 3. 該当する選択肢をすべて一括取得 (クエリ2回目)
-        // リポジトリの findByQuestionIn(questionIds) または相当するメソッドを使用
+        // 3. 該当する選択肢を一括取得 (クエリ2回目)
         List<Option> allOptions = optionRepository.findByQuestionIdIn(questionIds);
 
-        // 4. 親の QuestionID をキーにした Map に分類
+        // 4. 親IDをキーにしたMapに分類
         Map<UUID, List<Option>> optionMap = allOptions.stream()
-                .collect(Collectors.groupingBy(option -> option.getQuestionId()));
+                .collect(Collectors.groupingBy(Option::getQuestionId));
 
-        // 5. Entityのリストを DTO に変換（Mapから選択肢を渡す）
+        // 5. Entityリストを DTO に変換
         List<QuestionDto> dtos = questions.stream()
                 .map(q -> convertToDtoWithSubData(q, optionMap.getOrDefault(q.getQuestionId(), List.of())))
                 .collect(Collectors.toList());
 
-        // 6. レスポンス構築
+        // 6. hasMoreの判定：取得件数がリクエストサイズと同じなら「次あり」とみなす (指摘③)
+        boolean hasMore = questions.size() == size;
+
+        // 7. nextCursorの取得 (指摘④)
+        Long nextCursor = null;
+        if (!questions.isEmpty()) {
+            nextCursor = questions.get(questions.size() - 1).getSeq();
+        }
+
+        // 8. レスポンス構築 (指摘⑤)
         QuestionResponse response = new QuestionResponse();
         response.setQuestions(dtos);
-        response.setHasMore(questionPage.hasNext());
-        response.setNextCursor(questionPage.hasNext() ? page + 1 : null);
+        response.setHasMore(hasMore);
+        response.setNextCursor(nextCursor);
 
         return response;
     }
 
-    // 修正版：外部から渡された options を使って DTO を組み立てる
+    // DTO変換メソッド（ロジックは変更なし：きれいな設計を維持）
     private QuestionDto convertToDtoWithSubData(Question entity, List<Option> options) {
         QuestionDto dto = new QuestionDto();
         dto.setQuestionId(entity.getQuestionId());
@@ -96,7 +111,6 @@ public class QuestionService {
         dto.setExplanation(entity.getExplanation());
         dto.setDifficultyLevel(entity.getDifficultyLevel());
 
-        // 引数で受け取った options を DTO に変換
         List<OptionDto> optionDtos = options.stream()
                 .map(option -> {
                     OptionDto oDto = new OptionDto();
@@ -117,105 +131,134 @@ public class QuestionService {
     }
 
     // 3. 間違えた問題だけ取得 (/api/questions/mistakes)
-    public QuestionResponse getIncorrectQuestions(UUID userId, String genre, String language, int page, int size) {
+    public QuestionResponse getIncorrectQuestions(
+            UUID userId,
+            String genre,
+            String language,
+            Long cursor,
+            int size) {
 
-        String genreParam = (genre == null || genre.isEmpty() || "all".equalsIgnoreCase(genre)) ? null : genre;
+        String genreParam = (genre == null || genre.isEmpty() || "all".equalsIgnoreCase(genre))
+                ? null
+                : genre;
 
-        // ① Question取得（クエリ1回）
-        Page<Question> questionPage = userProgressRepository.findIncorrectQuestionsByUserId(
-                userId, genreParam, language, PageRequest.of(page, size));
+        int fetchSize = size + 1;
 
-        List<Question> questions = questionPage.getContent();
+        // ① 間違えた問題をcursorで取得
+        List<Question> questions = userProgressRepository
+                .findIncorrectQuestionsWithCursor(
+                        userId, genreParam, language, cursor, PageRequest.of(0, fetchSize));
 
         if (questions.isEmpty()) {
             return new QuestionResponse(new ArrayList<>(), null, false);
         }
 
-        // ② QuestionIDリスト作成
+        // ② hasMore判定
+        boolean hasMore = questions.size() > size;
+
+        if (hasMore) {
+            questions = questions.subList(0, size);
+        }
+
+        // ③ QuestionID収集
         List<UUID> questionIds = questions.stream()
                 .map(Question::getQuestionId)
                 .collect(Collectors.toList());
 
-        // ③ Option一括取得（クエリ2回目）
+        // ④ Option一括取得
         List<Option> allOptions = optionRepository.findByQuestionIdIn(questionIds);
 
-        // ④ Map化
+        // ⑤ Map化
         Map<UUID, List<Option>> optionMap = allOptions.stream()
                 .collect(Collectors.groupingBy(option -> option.getQuestion().getQuestionId()));
 
-        // ⑤ DTO変換
+        // ⑥ DTO変換
         List<QuestionDto> dtos = questions.stream()
                 .map(q -> convertToDtoWithSubData(
                         q,
-                        optionMap.getOrDefault(q.getQuestionId(), new ArrayList<>())))
+                        optionMap.getOrDefault(q.getQuestionId(), List.of())))
                 .collect(Collectors.toList());
 
-        // ⑥ レスポンス
+        // ⑦ nextCursor
+        Long nextCursor = questions.get(questions.size() - 1).getSeq();
+
+        // ⑧ レスポンス
         QuestionResponse response = new QuestionResponse();
         response.setQuestions(dtos);
-        response.setHasMore(questionPage.hasNext());
-        response.setNextCursor(questionPage.hasNext() ? page + 1 : null);
+        response.setHasMore(hasMore);
+        response.setNextCursor(nextCursor);
 
         return response;
     }
 
     // 4. 途中から再開 (/api/questions/resume)
-    public QuestionResponse resumeQuestions(UUID userId, String genre, String language, int page, int limit) {
+    public QuestionResponse resumeQuestions(
+            UUID userId,
+            String genre,
+            String language,
+            Long cursor,
+            int size) {
 
-        String genreParam = (genre == null || genre.isEmpty() || "all".equalsIgnoreCase(genre)) ? null : genre;
+        String genreParam = (genre == null || genre.isEmpty() || "all".equalsIgnoreCase(genre))
+                ? null
+                : genre;
 
-        Optional<UserProgress> lastLogOpt = userProgressRepository
-                .findFirstByUserIdAndQuestionLanguageAndQuestionGenreOrderByAnsweredAtDesc(
-                        userId, language, genreParam);
+        int fetchSize = size + 1;
 
-        Page<Question> questionPage;
-        PageRequest pageRequest = PageRequest.of(page, limit);
+        // ① cursorがない場合 → DBから最後の位置取得
+        if (cursor == null) {
+            Optional<UserProgress> lastLogOpt = userProgressRepository
+                    .findFirstByUserIdAndQuestionLanguageAndQuestionGenreOrderByAnsweredAtDesc(
+                            userId, language, genreParam);
 
-        if (lastLogOpt.isPresent()) {
-            Integer lastSeq = lastLogOpt.get().getQuestion().getSeq();
-
-            questionPage = questionRepository.findByLanguageAndGenreAndSeqGreaterThanOrderBySeqAsc(
-                    language, genreParam, lastSeq, pageRequest);
-        } else {
-            questionPage = questionRepository.findByLanguageAndGenreAndSeqGreaterThanOrderBySeqAsc(
-                    language, genreParam, 0, pageRequest);
+            cursor = lastLogOpt
+                    .map(log -> log.getQuestion().getSeq())
+                    .orElse(0L);
         }
 
-        List<Question> questions = questionPage.getContent();
+        // ② cursorベースで取得
+        List<Question> questions = questionRepository
+                .findQuestionsWithCursor(
+                        language, genreParam, cursor, PageRequest.of(0, fetchSize));
 
-        // ★ 空チェック（無駄クエリ防止）
         if (questions.isEmpty()) {
             return new QuestionResponse(new ArrayList<>(), null, false);
         }
 
-        // ① QuestionID収集
+        // ③ hasMore判定
+        boolean hasMore = questions.size() > size;
+
+        if (hasMore) {
+            questions = questions.subList(0, size);
+        }
+
+        // ④ QuestionID収集
         List<UUID> questionIds = questions.stream()
                 .map(Question::getQuestionId)
                 .collect(Collectors.toList());
 
-        // ② Option一括取得（これがN+1対策の本体）
+        // ⑤ Option一括取得
         List<Option> allOptions = optionRepository.findByQuestionIdIn(questionIds);
 
-        // ③ Map化
+        // ⑥ Map化
         Map<UUID, List<Option>> optionMap = allOptions.stream()
                 .collect(Collectors.groupingBy(option -> option.getQuestion().getQuestionId()));
 
-        // ④ DTO変換
+        // ⑦ DTO変換
         List<QuestionDto> dtoList = questions.stream()
                 .map(q -> convertToDtoWithSubData(
                         q,
-                        optionMap.getOrDefault(q.getQuestionId(), new ArrayList<>())))
+                        optionMap.getOrDefault(q.getQuestionId(), List.of())))
                 .collect(Collectors.toList());
 
-        // ⑤ レスポンス構築
+        // ⑧ nextCursor
+        Long nextCursor = questions.get(questions.size() - 1).getSeq();
+
+        // ⑨ レスポンス
         QuestionResponse response = new QuestionResponse();
         response.setQuestions(dtoList);
-        response.setHasMore(questionPage.hasNext());
-
-        if (questionPage.hasContent()) {
-            response.setNextCursor(
-                    questions.get(questions.size() - 1).getSeq());
-        }
+        response.setHasMore(hasMore);
+        response.setNextCursor(nextCursor);
 
         return response;
     }

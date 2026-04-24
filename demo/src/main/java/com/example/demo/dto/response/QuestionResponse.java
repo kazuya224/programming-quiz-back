@@ -14,6 +14,6 @@ import lombok.NoArgsConstructor;
 public class QuestionResponse {
 
     private List<QuestionDto> questions;
-    private Integer nextCursor; // mistakesはnullになる
+    private Long nextCursor; // mistakesはnullになる
     private boolean hasMore;
 }

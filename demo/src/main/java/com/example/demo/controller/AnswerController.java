@@ -2,6 +2,7 @@ package com.example.demo.controller;
 
 import com.example.demo.dto.request.AnswerRequest; // リクエストボディ用のDTO
 import com.example.demo.dto.response.AnswerHistoryResponse;
+import com.example.demo.dto.response.AnswerResponse;
 import com.example.demo.dto.response.UserHistoryResponse;
 import com.example.demo.entity.UserProgress;
 import com.example.demo.service.AnswerService;
@@ -13,6 +14,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 
@@ -25,13 +27,17 @@ public class AnswerController {
 
     // 1. 解答送信
     @PostMapping
-    public ResponseEntity<Map<String, String>> submitAnswer(@RequestBody AnswerRequest request) {
-        answerService.saveAnswer(
-                request.getUserId(),
-                request.getQuestionId(),
-                request.getSelectedOptionId(),
-                request.getConfidence());
-        return ResponseEntity.ok(Map.of("status", "ok"));
+    public ResponseEntity<AnswerResponse> submitAnswer(
+            Authentication authentication,
+            @RequestBody AnswerRequest request) {
+
+        Jwt jwt = (Jwt) authentication.getPrincipal();
+
+        // Supabaseなら通常 "sub" にユーザーIDが入ってる
+        UUID userId = UUID.fromString(jwt.getSubject());
+
+        return ResponseEntity.ok(
+                answerService.submitAnswer(userId, request));
     }
 
     // 2. 解答履歴取得

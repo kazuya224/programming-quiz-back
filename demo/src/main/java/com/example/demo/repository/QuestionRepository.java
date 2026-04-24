@@ -16,10 +16,6 @@ import java.util.List;
 import java.util.UUID;
 
 public interface QuestionRepository extends JpaRepository<Question, UUID> {
-        // ページング対応の問題取得
-        Page<Question> findByLanguage(String language, Pageable pageable);
-
-        Page<Question> findBySeqGreaterThanOrderBySeqAsc(Integer seq, Pageable pageable);
 
         @Query("SELECT new com.example.demo.dto.response.GenreDto(q.genre, q.language, null, COUNT(q), 0L) " + // ← ここ！
                         " FROM Question q " + // ← ここ！
@@ -37,7 +33,29 @@ public interface QuestionRepository extends JpaRepository<Question, UUID> {
         Page<Question> findByLanguageAndGenreAndSeqGreaterThanOrderBySeqAsc(
                         @Param("language") String language,
                         @Param("genre") String genre,
-                        @Param("seq") Integer seq,
+                        @Param("seq") Long seq,
+                        Pageable pageable);
+
+        @Query("""
+                        SELECT q FROM Question q
+                        WHERE q.language = :language
+                        AND (:genre IS NULL OR q.genre = :genre)
+                        AND (:cursor IS NULL OR q.seq > :cursor)
+                        ORDER BY q.seq ASC
+                        """)
+        List<Question> findQuestionsWithCursor(
+                        @Param("language") String language,
+                        @Param("genre") String genre,
+                        @Param("cursor") Long cursor,
+                        Pageable pageable);
+
+        List<Question> findByLanguageOrderBySeqAsc(
+                        String language,
+                        Pageable pageable);
+
+        List<Question> findByLanguageAndSeqGreaterThanOrderBySeqAsc(
+                        String language,
+                        Long seq,
                         Pageable pageable);
 
 }

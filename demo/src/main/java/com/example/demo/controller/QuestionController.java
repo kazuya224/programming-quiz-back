@@ -9,6 +9,7 @@ import com.example.demo.service.QuestionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -26,29 +27,53 @@ public class QuestionController {
 
     private final QuestionService questionService;
 
-    // 1. ページングされた問題取得
+    // 1. 通常問題（cursor方式）
     @GetMapping
     public ResponseEntity<QuestionResponse> getQuestions(
             @RequestParam String language,
-            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(required = false) Long cursor,
             @RequestParam(defaultValue = "10") int size) {
-        return ResponseEntity.ok(questionService.getQuestions(language, page, size));
+
+        return ResponseEntity.ok(
+                questionService.getQuestions(language, cursor, size));
     }
 
-    // 2. 間違えた問題だけ取得
+    // 2. 間違えた問題
     @GetMapping("/mistakes")
-    public ResponseEntity<QuestionResponse> getIncorrectQuestions(@RequestParam UUID userId,
+    public ResponseEntity<QuestionResponse> getIncorrectQuestions(
+            Authentication authentication,
             @RequestParam(required = false) String genre,
-            @RequestParam String language, @RequestParam int page, @RequestParam int size) {
-        return ResponseEntity.ok(questionService.getIncorrectQuestions(userId, genre, language, page, size));
+            @RequestParam String language,
+            @RequestParam(required = false) Long cursor,
+            @RequestParam int size) {
+
+        // ❌ NG: UUID userId = (UUID) authentication.getPrincipal();
+
+        // ✅ 正解
+        Jwt jwt = (Jwt) authentication.getPrincipal();
+        UUID userId = UUID.fromString(jwt.getSubject());
+
+        return ResponseEntity.ok(
+                questionService.getIncorrectQuestions(userId, genre, language, cursor, size));
     }
 
-    // 3. 途中から再開
+    // 3. 再開
     @GetMapping("/resume")
-    public ResponseEntity<QuestionResponse> resume(@RequestParam UUID userId,
-            @RequestParam(required = false) String genre, @RequestParam String language, @RequestParam int page,
-            @RequestParam int limit) {
-        return ResponseEntity.ok(questionService.resumeQuestions(userId, genre, language, page, limit));
+    public ResponseEntity<QuestionResponse> resume(
+            Authentication authentication,
+            @RequestParam(required = false) String genre,
+            @RequestParam String language,
+            @RequestParam(required = false) Long cursor,
+            @RequestParam int size) {
+
+        // ★ 修正ポイント
+        Jwt jwt = (Jwt) authentication.getPrincipal();
+
+        // subからuserId取り出す（←これが本質）
+        UUID userId = UUID.fromString(jwt.getSubject());
+
+        return ResponseEntity.ok(
+                questionService.resumeQuestions(userId, genre, language, cursor, size));
     }
 
     // 4. 統計データ取得

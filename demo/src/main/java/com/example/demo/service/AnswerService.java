@@ -1,7 +1,9 @@
 package com.example.demo.service;
 
 import com.example.demo.entity.UserProgress;
+import com.example.demo.dto.request.AnswerRequest;
 import com.example.demo.dto.response.AnswerHistoryResponse;
+import com.example.demo.dto.response.AnswerResponse;
 import com.example.demo.dto.response.UserHistoryResponse;
 import com.example.demo.entity.Option;
 import com.example.demo.entity.Question;
@@ -27,22 +29,37 @@ public class AnswerService {
 
         // 1. 回答保存（API: /api/answers）
         @Transactional
-        public void saveAnswer(UUID userId, UUID questionId, UUID selectedOptionId, int confidence) {
-                System.out.println("リクエスト" + selectedOptionId.toString());
-                // サーバーサイドでの正誤判定（不正防止の仕組み）
-                boolean isCorrect = optionRepository.findById(selectedOptionId)
-                                .map(Option::isCorrect)
-                                .orElse(false);
+        public AnswerResponse submitAnswer(UUID userId, AnswerRequest request) {
 
+                // 正解の選択肢取得
+                Option correctOption = optionRepository
+                                .findByQuestionIdAndIsCorrectTrue(request.getQuestionId())
+                                .orElseThrow();
+
+                boolean isCorrect = correctOption.getOptionId()
+                                .equals(request.getSelectedOptionId());
+
+                // 解説取得
+                Question question = questionRepository
+                                .findById(request.getQuestionId())
+                                .orElseThrow();
+
+                // 保存
                 UserProgress progress = new UserProgress();
                 progress.setUserId(userId);
-                progress.setQuestionId(questionId);
-                progress.setSelectedOptionId(selectedOptionId);
+                progress.setQuestionId(request.getQuestionId());
+                progress.setSelectedOptionId(request.getSelectedOptionId());
                 progress.setCorrect(isCorrect);
-                progress.setConfidence(confidence);
-                progress.setAnsweredAt(LocalDateTime.now()); // 明示的にセット
+                progress.setConfidence(request.getConfidence());
+                progress.setAnsweredAt(LocalDateTime.now());
 
                 userProgressRepository.save(progress);
+
+                // 👇 フロントに返す
+                return new AnswerResponse(
+                                isCorrect,
+                                correctOption.getOptionId(),
+                                question.getExplanation());
         }
 
         // 2. 履歴取得（API: /api/answers/history/{userId}）
