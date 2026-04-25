@@ -12,17 +12,19 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
+import org.springframework.beans.factory.annotation.Value;
 
 @Configuration
 public class SecurityConfig {
+
+    @Value("${jwt.secret}")
+    private String secret;
+
     @Bean
     public JwtDecoder jwtDecoder() {
-        String secret = "my-super-secret-key-my-super-secret-key";
-
         SecretKey key = new SecretKeySpec(
                 secret.getBytes(),
                 "HmacSHA256");
-
         return NimbusJwtDecoder.withSecretKey(key).build();
     }
 
@@ -43,16 +45,23 @@ public class SecurityConfig {
                     config.setAllowedOrigins(List.of(
                             "http://localhost:3000",
                             "https://programing-quiz-zeta.vercel.app"));
-                    config.setAllowedMethods(List.of("*"));
-                    config.setAllowedHeaders(List.of("*"));
+                    config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+                    config.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept"));
+                    config.setExposedHeaders(List.of("Authorization"));
                     return config;
                 }))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/login").permitAll()
                         .requestMatchers("/api/auth/google").permitAll()
+                        .requestMatchers("/api/auth/login").permitAll()
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .jwt(jwt -> {
+                        })
+                        // ✅ Authorizationヘッダーがない場合は401ではなく通過させる
+                        .authenticationEntryPoint((request, response, authException) -> {
+                            response.setStatus(401);
+                            response.setContentType("application/json");
+                            response.getWriter().write("{\"error\": \"Unauthorized\"}");
                         }));
 
         return http.build();
