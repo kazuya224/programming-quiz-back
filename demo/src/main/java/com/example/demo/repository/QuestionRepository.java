@@ -13,6 +13,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface QuestionRepository extends JpaRepository<Question, UUID> {
@@ -57,5 +58,18 @@ public interface QuestionRepository extends JpaRepository<Question, UUID> {
                         String language,
                         Long seq,
                         Pageable pageable);
+
+        Optional<Question> findFirstByLanguageOrderByQuestionIdAsc(String language);
+
+        @Query("SELECT q.seq FROM Question q WHERE q.questionId = :questionId")
+        Optional<Long> findSeqByQuestionId(UUID questionId);
+
+        @Query("""
+                        SELECT q FROM Question q
+                        WHERE q.language = :language
+                        AND q.seq > :currentSeq
+                        ORDER BY q.seq ASC
+                        """)
+        List<Question> findNextQuestions(String language, Long currentSeq, Pageable pageable);
 
 }

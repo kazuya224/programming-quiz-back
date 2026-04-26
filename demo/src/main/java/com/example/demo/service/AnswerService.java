@@ -5,14 +5,17 @@ import com.example.demo.dto.request.AnswerRequest;
 import com.example.demo.dto.response.AnswerHistoryResponse;
 import com.example.demo.dto.response.AnswerResponse;
 import com.example.demo.dto.response.UserHistoryResponse;
+import com.example.demo.entity.LearningSession;
 import com.example.demo.entity.Option;
 import com.example.demo.entity.Question;
+import com.example.demo.repository.LearningSessionRepository;
 import com.example.demo.repository.OptionRepository;
 import com.example.demo.repository.QuestionRepository;
 import com.example.demo.repository.UserProgressRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
@@ -30,6 +33,9 @@ public class AnswerService {
         // 変数名を統一（設計書に合わせて userProgressRepository とします）
         private final UserProgressRepository userProgressRepository;
         private final QuestionRepository questionRepository;
+
+        @Autowired
+        private LearningSessionRepository learningSessionRepository;
 
         // 1. 回答保存（API: /api/answers）
         @Transactional
@@ -59,11 +65,40 @@ public class AnswerService {
 
                 userProgressRepository.save(progress);
 
+                if ("learning".equals(request.getMode()) || "resume".equals(request.getMode())) {
+
+                        LearningSession session = learningSessionRepository
+                                        .findByUserIdAndLanguage(userId, request.getLanguage())
+                                        .orElseGet(() -> {
+                                                LearningSession newSession = new LearningSession();
+                                                newSession.setUserId(userId);
+                                                newSession.setLanguage(request.getLanguage());
+                                                return newSession;
+                                        });
+
+                        session.setCurrentQuestionId(request.getQuestionId());
+                        learningSessionRepository.save(session);
+                }
+
                 // 👇 フロントに返す
                 return new AnswerResponse(
                                 isCorrect,
                                 correctOption.getOptionId(),
                                 question.getExplanation());
+        }
+
+        public UUID getNextQuestionId(UUID currentQuestionId, String language) {
+
+                Long currentSeq = questionRepository
+                                .findSeqByQuestionId(currentQuestionId)
+                                .orElseThrow();
+
+                return questionRepository
+                                .findNextQuestions(language, currentSeq, PageRequest.of(0, 1))
+                                .stream()
+                                .findFirst()
+                                .map(Question::getQuestionId)
+                                .orElse(null);
         }
 
         // 2. 履歴取得（API: /api/answers/history/{userId}）

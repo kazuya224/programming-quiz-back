@@ -5,6 +5,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
+import com.example.demo.repository.LearningSessionRepository;
 import com.example.demo.repository.OptionRepository;
 import com.example.demo.repository.QuestionRepository;
 import com.example.demo.repository.UserProgressRepository;
@@ -20,6 +21,7 @@ import com.example.demo.dto.response.QuestionDto;
 import com.example.demo.dto.response.QuestionResponse;
 import com.example.demo.dto.response.UserStatsDto;
 import com.example.demo.dto.response.WeekStats;
+import com.example.demo.entity.LearningSession;
 import com.example.demo.entity.Option;
 import com.example.demo.entity.Question;
 import com.example.demo.entity.UserProgress;
@@ -45,6 +47,7 @@ public class QuestionService {
     private final QuestionRepository questionRepository;
     private final UserProgressRepository userProgressRepository;
     private final OptionRepository optionRepository;
+    private final LearningSessionRepository learningSessionRepository;
     private static final ZoneId JST = ZoneId.of("Asia/Tokyo");
 
     // 1. ページングされた問題取得 (/api/questions)
@@ -207,13 +210,18 @@ public class QuestionService {
 
         // ① cursorがない場合 → DBから最後の位置取得
         if (cursor == null) {
-            Optional<UserProgress> lastLogOpt = userProgressRepository
-                    .findFirstByUserIdAndQuestionLanguageAndQuestionGenreOrderByAnsweredAtDesc(
-                            userId, language, genreParam);
 
-            cursor = lastLogOpt
-                    .map(log -> log.getQuestion().getSeq())
-                    .orElse(0L);
+            Optional<LearningSession> sessionOpt = learningSessionRepository.findByUserIdAndLanguage(userId, language);
+
+            if (sessionOpt.isPresent()) {
+                UUID currentQuestionId = sessionOpt.get().getCurrentQuestionId();
+
+                cursor = questionRepository
+                        .findSeqByQuestionId(currentQuestionId)
+                        .orElse(0L);
+            } else {
+                cursor = 0L;
+            }
         }
 
         // ② cursorベースで取得

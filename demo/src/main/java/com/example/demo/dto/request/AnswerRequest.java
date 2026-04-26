@@ -11,4 +11,6 @@ public class AnswerRequest {
     private UUID selectedOptionId;
     private boolean isCorrect;
     private int confidence;
+    private String mode; // "learning" or "review"
+    private String language; // "java", "js", "ts"
 }
