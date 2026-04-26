@@ -25,7 +25,7 @@ public class UserProgress {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "answer_log_id")
-    private UUID answer_log_id;
+    private UUID answerLogId;
 
     @Column(name = "user_id")
     private UUID userId;

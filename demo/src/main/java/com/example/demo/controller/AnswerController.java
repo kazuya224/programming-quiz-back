@@ -7,6 +7,8 @@ import com.example.demo.dto.response.UserHistoryResponse;
 import com.example.demo.entity.UserProgress;
 import com.example.demo.service.AnswerService;
 import lombok.RequiredArgsConstructor;
+
+import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -42,11 +44,14 @@ public class AnswerController {
 
     // 2. 解答履歴取得
     @GetMapping("/history")
-    public ResponseEntity<List<AnswerHistoryResponse>> getHistory(
-            @AuthenticationPrincipal Jwt jwt) {
+    public ResponseEntity<Page<AnswerHistoryResponse>> getHistory(
+            @AuthenticationPrincipal Jwt jwt,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
 
         UUID userId = UUID.fromString(jwt.getSubject());
 
-        return ResponseEntity.ok(answerService.getHistoryByUserId(userId));
+        return ResponseEntity.ok(
+                answerService.getHistory(userId, page, size));
     }
 }

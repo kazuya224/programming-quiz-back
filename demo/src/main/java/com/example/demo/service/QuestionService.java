@@ -126,9 +126,9 @@ public class QuestionService {
     }
 
     // 2. 解答履歴取得 (/api/answers/history/{userId})
-    public List<UserProgress> getHistory(UUID userId) {
-        return userProgressRepository.findByUserIdOrderByAnsweredAtDesc(userId);
-    }
+    // public List<UserProgress> getHistory(UUID userId) {
+    // return userProgressRepository.findByUserIdOrderByAnsweredAtDesc(userId);
+    // }
 
     // 3. 間違えた問題だけ取得 (/api/questions/mistakes)
     public QuestionResponse getIncorrectQuestions(
