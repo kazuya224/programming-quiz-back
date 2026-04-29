@@ -16,4 +16,7 @@ public class StripeConfig {
     public void init() {
         Stripe.apiKey = secretKey;
     }
+
+    @Value("${stripe.price-id}")
+    private String priceId;
 }

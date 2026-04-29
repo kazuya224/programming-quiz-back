@@ -7,12 +7,15 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import com.stripe.model.checkout.Session;
 import com.stripe.param.checkout.SessionCreateParams;
-
+import org.springframework.beans.factory.annotation.Value;
 import java.time.LocalDateTime;
 
 @Service
 @RequiredArgsConstructor
 public class SubscriptionService {
+
+    @Value("${stripe.price-id}")
+    private String priceId;
 
     private final SubscriptionRepository subscriptionRepository;
 
@@ -63,7 +66,7 @@ public class SubscriptionService {
 
                 .addLineItem(
                         SessionCreateParams.LineItem.builder()
-                                .setPrice("price_1TRKPcCoEbOn01AbfRwyb2um") // ← Stripeで作ったPrice
+                                .setPrice(priceId) // ← Stripeで作ったPrice
                                 .setQuantity(1L)
                                 .build())
                 .build();
