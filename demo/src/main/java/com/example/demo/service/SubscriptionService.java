@@ -58,8 +58,8 @@ public class SubscriptionService {
 
         SessionCreateParams params = SessionCreateParams.builder()
                 .setMode(SessionCreateParams.Mode.SUBSCRIPTION)
-                .setSuccessUrl("http://localhost:3000/success")
-                .setCancelUrl("http://localhost:3000/cancel")
+                .setSuccessUrl("https://programing-quiz-zeta.vercel.app/success")
+                .setCancelUrl("https://programing-quiz-zeta.vercel.app/cancel")
 
                 // 🔥 ここが最重要（ユーザー紐付け）
                 .putMetadata("userId", user.getUserId().toString())
