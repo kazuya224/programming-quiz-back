@@ -9,6 +9,7 @@ import com.stripe.model.checkout.Session;
 import com.stripe.param.checkout.SessionCreateParams;
 import org.springframework.beans.factory.annotation.Value;
 import java.time.LocalDateTime;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -58,8 +59,10 @@ public class SubscriptionService {
 
         SessionCreateParams params = SessionCreateParams.builder()
                 .setMode(SessionCreateParams.Mode.SUBSCRIPTION)
-                .setSuccessUrl("https://programing-quiz-zeta.vercel.app/success")
-                .setCancelUrl("https://programing-quiz-zeta.vercel.app/cancel")
+                // .setSuccessUrl("https://programing-quiz-zeta.vercel.app/success")
+                // .setCancelUrl("https://programing-quiz-zeta.vercel.app/cancel")
+                .setSuccessUrl("http://localhost:3000/success")
+                .setCancelUrl("http://localhost:3000/cancel")
 
                 // 🔥 ここが最重要（ユーザー紐付け）
                 .putMetadata("userId", user.getUserId().toString())
@@ -79,11 +82,18 @@ public class SubscriptionService {
     // 🔥 解約（仮実装）
     public void cancel(User user) {
 
-        Subscription sub = subscriptionRepository.findByUserId(user.getUserId())
+        Subscription subEntity = subscriptionRepository.findByUserId(user.getUserId())
                 .orElseThrow(() -> new RuntimeException("Subscription not found"));
 
-        sub.setCancelAtPeriodEnd(true);
+        try {
+            com.stripe.model.Subscription stripeSub = com.stripe.model.Subscription
+                    .retrieve(subEntity.getStripeSubscriptionId());
 
-        subscriptionRepository.save(sub);
+            stripeSub.update(
+                    Map.of("cancel_at_period_end", true));
+
+        } catch (Exception e) {
+            throw new RuntimeException("Stripe解約失敗", e);
+        }
     }
 }
