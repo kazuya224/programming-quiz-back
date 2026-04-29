@@ -50,7 +50,6 @@ public class AuthController {
 
         UUID userId = UUID.fromString(jwt.getSubject());
         String userName = body.get("userName");
-        System.out.println("JWT: " + jwt);
 
         authService.updateUserName(userId, userName);
 

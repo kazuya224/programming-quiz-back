@@ -1,41 +1,48 @@
 package com.example.demo.entity;
 
-import java.time.LocalDateTime;
-import java.util.UUID;
-import java.util.List;
 import jakarta.persistence.*;
-import lombok.Data;
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
+import lombok.Getter;
+import lombok.Setter;
+
+import java.time.OffsetDateTime;
+import java.util.UUID;
 
 @Entity
-@Data
 @Table(name = "users")
+@Getter
+@Setter
 public class User {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(name = "user_id", updatable = false, nullable = false)
+    @Column(name = "user_id")
     private UUID userId;
 
-    @Column(name = "user_name", length = 64)
+    @Column(name = "user_name")
     private String userName;
 
-    @Column(name = "email", nullable = false, unique = true)
+    @Column(name = "password")
+    private String password;
+
+    @Column(name = "email", nullable = false)
     private String email;
 
-    @Column(name = "google_id", nullable = false, unique = true)
+    @Column(name = "google_id")
     private String googleId;
 
-    @CreationTimestamp
-    @Column(name = "created_at", updatable = false)
-    private LocalDateTime createdAt;
+    @Column(name = "provider_id", unique = true)
+    private String providerId;
 
-    @UpdateTimestamp
-    @Column(name = "updated_at")
-    private LocalDateTime updatedAt;
+    @Column(name = "provider")
+    private String provider;
 
-    // 【仕組み化】ユーザーに紐づく学習履歴を一括取得できるようにする（双方向リレーション）
-    @OneToMany(mappedBy = "userId", cascade = CascadeType.ALL)
-    private List<UserProgress> progressLogs;
+    // 🔥 Stripe連携で最重要
+    @Column(name = "stripe_customer_id")
+    private String stripeCustomerId;
+
+    // 🔥 timestamptz対応
+    @Column(name = "created_at", insertable = false, updatable = false)
+    private OffsetDateTime createdAt;
+
+    @Column(name = "updated_at", insertable = false)
+    private OffsetDateTime updatedAt;
 }
