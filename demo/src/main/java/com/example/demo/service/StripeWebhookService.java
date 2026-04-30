@@ -30,7 +30,7 @@ public class StripeWebhookService {
 
                         switch (event.getType()) {
                                 case "checkout.session.completed" -> handleCheckoutCompleted(obj);
-                                case "invoice.payment_succeeded" -> handlePaymentSucceeded(obj);
+                                case "invoice.payment_succeeded", "invoice.paid" -> handlePaymentSucceeded(obj);
                                 case "customer.subscription.deleted" -> handleSubscriptionDeleted(obj);
                                 case "customer.subscription.updated" -> handleSubscriptionUpdated(obj);
                         }
