@@ -39,16 +39,13 @@ public class StripeWebhookController {
 
         Event event;
         try {
-            if ("dummy".equals(endpointSecret) || sigHeader == null) {
-                event = Event.GSON.fromJson(payload, Event.class);
-            } else {
-                event = Webhook.constructEvent(payload, sigHeader, endpointSecret);
-            }
+            event = Webhook.constructEvent(payload, sigHeader, endpointSecret);
         } catch (SignatureVerificationException e) {
             return ResponseEntity.status(401).body("Invalid signature");
         }
 
         webhookService.handleEvent(event);
+        System.out.println("🔥 webhook received");
 
         return ResponseEntity.ok("success");
     }

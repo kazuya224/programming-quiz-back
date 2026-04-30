@@ -23,10 +23,16 @@ public class StripeWebhookService {
         private final UserRepository userRepository;
 
         public void handleEvent(Event event) {
-                System.out.println("EVENT: " + event.getType());
+                System.out.println("🔥 handleEvent start: " + event.getType());
                 try {
-                        // ✅ rawJsonをJsonObjectとして直接パース（モデルクラスを使わない）
-                        String rawJson = event.getDataObjectDeserializer().getRawJson();
+                        var deserializer = event.getDataObjectDeserializer();
+                        String rawJson = deserializer.getRawJson();
+
+                        if (rawJson == null || rawJson.isBlank()) {
+                                System.out.println("⚠️ rawJson is null or empty");
+                                return;
+                        }
+
                         JsonObject obj = JsonParser.parseString(rawJson).getAsJsonObject();
 
                         switch (event.getType()) {

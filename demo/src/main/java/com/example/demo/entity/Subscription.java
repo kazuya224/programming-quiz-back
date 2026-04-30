@@ -27,7 +27,7 @@ public class Subscription {
     @Column(nullable = false)
     private String status;
 
-    @Column(name = "current_period_end", nullable = false)
+    @Column(name = "current_period_end", nullable = true)
     private LocalDateTime currentPeriodEnd;
 
     @Column(name = "cancel_at_period_end")
