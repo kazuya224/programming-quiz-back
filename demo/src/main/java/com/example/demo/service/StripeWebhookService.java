@@ -23,6 +23,7 @@ public class StripeWebhookService {
         private final UserRepository userRepository;
 
         public void handleEvent(Event event) {
+                System.out.println("EVENT: " + event.getType());
                 try {
                         // ✅ rawJsonをJsonObjectとして直接パース（モデルクラスを使わない）
                         String rawJson = event.getDataObjectDeserializer().getRawJson();

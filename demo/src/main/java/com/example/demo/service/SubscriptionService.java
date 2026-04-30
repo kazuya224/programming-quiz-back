@@ -45,7 +45,7 @@ public class SubscriptionService {
         sub.setUserId(user.getUserId());
         sub.setStripeSubscriptionId("sub_mock_" + user.getUserId());
         sub.setStatus("active");
-        sub.setCurrentPeriodEnd(LocalDateTime.now().plusMonths(1));
+        // sub.setCurrentPeriodEnd(LocalDateTime.now().plusMonths(1));
         sub.setCancelAtPeriodEnd(false);
 
         subscriptionRepository.save(sub);
