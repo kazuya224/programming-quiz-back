@@ -143,7 +143,16 @@ public class StripeWebhookService {
                 }
 
                 boolean cancelAtPeriodEnd = obj.get("cancel_at_period_end").getAsBoolean();
+
+                long periodEnd = obj.get("current_period_end").getAsLong();
+
                 sub.setCancelAtPeriodEnd(cancelAtPeriodEnd);
+
+                sub.setCurrentPeriodEnd(
+                                LocalDateTime.ofInstant(
+                                                Instant.ofEpochSecond(periodEnd),
+                                                ZoneId.of("Asia/Tokyo")));
+
                 subscriptionRepository.save(sub);
         }
 }
