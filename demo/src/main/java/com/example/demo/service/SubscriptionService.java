@@ -10,6 +10,8 @@ import com.stripe.param.checkout.SessionCreateParams;
 import org.springframework.beans.factory.annotation.Value;
 import java.time.LocalDateTime;
 import java.util.Map;
+import java.util.UUID;
+import com.stripe.param.SubscriptionUpdateParams;
 
 @Service
 @RequiredArgsConstructor
@@ -23,14 +25,7 @@ public class SubscriptionService {
     // 🔥 有料判定
     public boolean isPremium(User user) {
         return subscriptionRepository.findByUserId(user.getUserId())
-                .map(sub -> {
-
-                    boolean result = "active".equals(sub.getStatus()) &&
-                            sub.getCurrentPeriodEnd() != null &&
-                            sub.getCurrentPeriodEnd().isAfter(LocalDateTime.now());
-
-                    return result;
-                })
+                .map(this::isActiveSubscription)
                 .orElse(false);
     }
 
@@ -89,11 +84,36 @@ public class SubscriptionService {
             com.stripe.model.Subscription stripeSub = com.stripe.model.Subscription
                     .retrieve(subEntity.getStripeSubscriptionId());
 
-            stripeSub.update(
-                    Map.of("cancel_at_period_end", true));
+            // ✅ SubscriptionUpdateParams を使う
+            SubscriptionUpdateParams params = SubscriptionUpdateParams.builder()
+                    .setCancelAtPeriodEnd(true)
+                    .build();
+
+            stripeSub.update(params);
+
+            // ✅ DBも即時更新（webhookが遅れる場合の保険）
+            subEntity.setCancelAtPeriodEnd(true);
+            subscriptionRepository.save(subEntity);
 
         } catch (Exception e) {
             throw new RuntimeException("Stripe解約失敗", e);
         }
+    }
+
+    public boolean isPremium(UUID userId) {
+        return subscriptionRepository.findByUserId(userId)
+                .map(this::isActiveSubscription)
+                .orElse(false);
+    }
+
+    private boolean isActiveSubscription(Subscription sub) {
+        String status = sub.getStatus();
+
+        boolean isActiveStatus = "active".equals(status) || "trialing".equals(status);
+
+        boolean notExpired = sub.getCurrentPeriodEnd() != null &&
+                sub.getCurrentPeriodEnd().isAfter(LocalDateTime.now());
+
+        return isActiveStatus && notExpired;
     }
 }

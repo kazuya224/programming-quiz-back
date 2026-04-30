@@ -30,12 +30,16 @@ public class QuestionController {
     // 1. 通常問題（cursor方式）
     @GetMapping
     public ResponseEntity<QuestionResponse> getQuestions(
+            Authentication authentication,
             @RequestParam String language,
             @RequestParam(required = false) Long cursor,
             @RequestParam(defaultValue = "10") int size) {
 
+        Jwt jwt = (Jwt) authentication.getPrincipal();
+        UUID userId = UUID.fromString(jwt.getSubject());
+
         return ResponseEntity.ok(
-                questionService.getQuestions(language, cursor, size));
+                questionService.getQuestions(userId, language, cursor, size));
     }
 
     // 2. 間違えた問題

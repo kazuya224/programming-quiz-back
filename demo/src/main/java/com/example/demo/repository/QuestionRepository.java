@@ -18,11 +18,15 @@ import java.util.UUID;
 
 public interface QuestionRepository extends JpaRepository<Question, UUID> {
 
-        @Query("SELECT new com.example.demo.dto.response.GenreDto(q.genre, q.language, null, COUNT(q), 0L) " + // ← ここ！
-                        " FROM Question q " + // ← ここ！
-                        " WHERE q.difficultyLevel = 0" + // ← ここ！
-                        " GROUP BY q.language, q.genre")
-        List<GenreDto> findAllTotalCounts();
+        @Query("""
+                            SELECT new com.example.demo.dto.response.GenreDto(
+                                q.genre, q.language, null, COUNT(q), 0L
+                            )
+                            FROM Question q
+                            WHERE (:difficulty IS NULL OR q.difficultyLevel = :difficulty)
+                            GROUP BY q.language, q.genre
+                        """)
+        List<GenreDto> findAllTotalCounts(@Param("difficulty") Integer difficulty);
 
         @Query("SELECT DISTINCT q.language as language, q.genre as genre FROM Question q")
         List<GenreMasterProjection> findAllLanguagesAndGenres();
@@ -71,5 +75,33 @@ public interface QuestionRepository extends JpaRepository<Question, UUID> {
                         ORDER BY q.seq ASC
                         """)
         List<Question> findNextQuestions(String language, Long currentSeq, Pageable pageable);
+
+        @Query("""
+                        SELECT q FROM Question q
+                        WHERE q.language = :language
+                        AND (:genre IS NULL OR q.genre = :genre)
+                        AND (:difficulty IS NULL OR q.difficultyLevel = :difficulty)
+                        ORDER BY q.seq ASC
+                        """)
+        List<Question> findQuestions(
+                        @Param("language") String language,
+                        @Param("genre") String genre,
+                        @Param("difficulty") Integer difficulty,
+                        Pageable pageable);
+
+        @Query("""
+                        SELECT q FROM Question q
+                        WHERE q.language = :language
+                        AND (:genre IS NULL OR q.genre = :genre)
+                        AND (:cursor IS NULL OR q.seq > :cursor)
+                        AND (:difficulty IS NULL OR q.difficultyLevel = :difficulty)
+                        ORDER BY q.seq ASC
+                        """)
+        List<Question> findQuestionsWithCursorAndDifficulty(
+                        @Param("language") String language,
+                        @Param("genre") String genre,
+                        @Param("cursor") Long cursor,
+                        @Param("difficulty") Integer difficulty,
+                        Pageable pageable);
 
 }

@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.LocalDateTime;
 import java.util.Map;
 import org.springframework.security.oauth2.jwt.Jwt;
 
@@ -38,6 +39,8 @@ public class SubscriptionController {
 
         boolean isPremium = subscriptionService.isPremium(user);
         Subscription sub = subscriptionService.getSubscription(user);
+        System.out.println("currentPeriodEnd: " + sub.getCurrentPeriodEnd());
+        System.out.println("now: " + LocalDateTime.now());
 
         return new SubscriptionResponse(isPremium, sub);
     }

@@ -111,7 +111,9 @@ public class StripeWebhookService {
                                 .get("end").getAsLong();
 
                 sub.setCurrentPeriodEnd(
-                                LocalDateTime.ofInstant(Instant.ofEpochSecond(periodEnd), ZoneId.systemDefault()));
+                                LocalDateTime.ofInstant(
+                                                Instant.ofEpochSecond(periodEnd),
+                                                ZoneId.of("Asia/Tokyo")));
 
                 Subscription saved = subscriptionRepository.save(sub);
         }
