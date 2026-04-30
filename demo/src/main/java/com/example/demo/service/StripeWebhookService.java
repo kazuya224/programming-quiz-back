@@ -102,15 +102,20 @@ public class StripeWebhookService {
                                                 "Subscription not found: " + finalSubscriptionId));
 
                 sub.setStatus("active");
-                long periodEnd = obj.getAsJsonObject("lines")
-                                .getAsJsonArray("data").get(0).getAsJsonObject()
-                                .getAsJsonObject("period")
-                                .get("end").getAsLong();
+                if (obj.has("lines")) {
+                        JsonObject lines = obj.getAsJsonObject("lines");
+                        if (lines.has("data")) {
+                                JsonObject first = lines.getAsJsonArray("data").get(0).getAsJsonObject();
+                                JsonObject period = first.getAsJsonObject("period");
 
-                sub.setCurrentPeriodEnd(
-                                LocalDateTime.ofInstant(
-                                                Instant.ofEpochSecond(periodEnd),
-                                                ZoneId.of("Asia/Tokyo")));
+                                long periodEnd = period.get("end").getAsLong();
+
+                                sub.setCurrentPeriodEnd(
+                                                LocalDateTime.ofInstant(
+                                                                Instant.ofEpochSecond(periodEnd),
+                                                                ZoneId.of("Asia/Tokyo")));
+                        }
+                }
 
                 subscriptionRepository.save(sub);
         }
@@ -140,15 +145,17 @@ public class StripeWebhookService {
                 }
 
                 boolean cancelAtPeriodEnd = obj.get("cancel_at_period_end").getAsBoolean();
-
-                long periodEnd = obj.get("current_period_end").getAsLong();
-
                 sub.setCancelAtPeriodEnd(cancelAtPeriodEnd);
 
-                sub.setCurrentPeriodEnd(
-                                LocalDateTime.ofInstant(
-                                                Instant.ofEpochSecond(periodEnd),
-                                                ZoneId.of("Asia/Tokyo")));
+                // ✅ ここだけで更新
+                if (obj.has("current_period_end") && !obj.get("current_period_end").isJsonNull()) {
+                        long periodEnd = obj.get("current_period_end").getAsLong();
+
+                        sub.setCurrentPeriodEnd(
+                                        LocalDateTime.ofInstant(
+                                                        Instant.ofEpochSecond(periodEnd),
+                                                        ZoneId.of("Asia/Tokyo")));
+                }
 
                 subscriptionRepository.save(sub);
         }
