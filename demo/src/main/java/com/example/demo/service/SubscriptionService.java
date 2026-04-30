@@ -12,6 +12,7 @@ import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.UUID;
 import com.stripe.param.SubscriptionUpdateParams;
+import java.time.Instant;
 
 @Service
 @RequiredArgsConstructor
@@ -52,25 +53,26 @@ public class SubscriptionService {
 
     public String createCheckoutSession(User user) throws Exception {
 
+        long now = Instant.now().getEpochSecond();
+
         SessionCreateParams params = SessionCreateParams.builder()
                 .setMode(SessionCreateParams.Mode.SUBSCRIPTION)
                 .setSuccessUrl("https://programing-quiz-zeta.vercel.app/success")
                 .setCancelUrl("https://programing-quiz-zeta.vercel.app/cancel")
-                // .setSuccessUrl("http://localhost:3000/success")
-                // .setCancelUrl("http://localhost:3000/cancel")
-
-                // 🔥 ここが最重要（ユーザー紐付け）
                 .putMetadata("userId", user.getUserId().toString())
-
+                // ✅ 現在時刻のUnixタイムスタンプを指定
+                .setSubscriptionData(
+                        SessionCreateParams.SubscriptionData.builder()
+                                .setBillingCycleAnchor(now)
+                                .build())
                 .addLineItem(
                         SessionCreateParams.LineItem.builder()
-                                .setPrice(priceId) // ← Stripeで作ったPrice
+                                .setPrice(priceId)
                                 .setQuantity(1L)
                                 .build())
                 .build();
 
         Session session = Session.create(params);
-
         return session.getUrl();
     }
 

@@ -95,7 +95,6 @@ public class StripeWebhookService {
                         return;
                 }
 
-                // ✅ effectively final にするためコピー
                 final String finalSubscriptionId = subscriptionId;
 
                 Subscription sub = subscriptionRepository
@@ -104,18 +103,9 @@ public class StripeWebhookService {
                                                 "Subscription not found: " + finalSubscriptionId));
 
                 sub.setStatus("active");
+                // ✅ current_period_end の更新を削除（handleSubscriptionUpdated に任せる）
 
-                long periodEnd = obj.getAsJsonObject("lines")
-                                .getAsJsonArray("data").get(0).getAsJsonObject()
-                                .getAsJsonObject("period")
-                                .get("end").getAsLong();
-
-                sub.setCurrentPeriodEnd(
-                                LocalDateTime.ofInstant(
-                                                Instant.ofEpochSecond(periodEnd),
-                                                ZoneId.of("Asia/Tokyo")));
-
-                Subscription saved = subscriptionRepository.save(sub);
+                subscriptionRepository.save(sub);
         }
 
         private void handleSubscriptionDeleted(JsonObject obj) {
