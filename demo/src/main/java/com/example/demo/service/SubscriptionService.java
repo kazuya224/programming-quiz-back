@@ -53,18 +53,12 @@ public class SubscriptionService {
 
     public String createCheckoutSession(User user) throws Exception {
 
-        long now = Instant.now().getEpochSecond();
-
         SessionCreateParams params = SessionCreateParams.builder()
                 .setMode(SessionCreateParams.Mode.SUBSCRIPTION)
                 .setSuccessUrl("https://programing-quiz-zeta.vercel.app/success")
                 .setCancelUrl("https://programing-quiz-zeta.vercel.app/cancel")
                 .putMetadata("userId", user.getUserId().toString())
-                // ✅ 現在時刻のUnixタイムスタンプを指定
-                .setSubscriptionData(
-                        SessionCreateParams.SubscriptionData.builder()
-                                .setBillingCycleAnchor(now)
-                                .build())
+                // ✅ 削除：Stripeに自動で決めさせる
                 .addLineItem(
                         SessionCreateParams.LineItem.builder()
                                 .setPrice(priceId)

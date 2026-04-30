@@ -69,8 +69,6 @@ public class StripeWebhookService {
                 sub.setStripeSubscriptionId(subscriptionId);
                 sub.setStatus("active");
                 sub.setCancelAtPeriodEnd(false);
-                // ✅ currentPeriodEndは invoice.payment_succeeded で上書きされるので仮値を入れる
-                sub.setCurrentPeriodEnd(LocalDateTime.now().plusDays(1));
 
                 Subscription saved = subscriptionRepository.save(sub);
         }
@@ -103,7 +101,15 @@ public class StripeWebhookService {
                                                 "Subscription not found: " + finalSubscriptionId));
 
                 sub.setStatus("active");
-                // ✅ current_period_end の更新を削除（handleSubscriptionUpdated に任せる）
+                long periodEnd = obj.getAsJsonObject("lines")
+                                .getAsJsonArray("data").get(0).getAsJsonObject()
+                                .getAsJsonObject("period")
+                                .get("end").getAsLong();
+
+                sub.setCurrentPeriodEnd(
+                                LocalDateTime.ofInstant(
+                                                Instant.ofEpochSecond(periodEnd),
+                                                ZoneId.of("Asia/Tokyo")));
 
                 subscriptionRepository.save(sub);
         }
