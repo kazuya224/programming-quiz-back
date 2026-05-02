@@ -43,11 +43,9 @@ public class StripeWebhookService {
 
         @Transactional
         public void handleEvent(Event event) {
-                System.out.println("🔥 handleEvent start: " + event.getType());
 
                 // ✅ idempotency チェック（DB管理：再起動・スケールアウト対応）
                 if (processedEventRepository.existsById(event.getId())) {
-                        System.out.println("⏭️ already processed, skip: " + event.getId());
                         return;
                 }
 
@@ -56,7 +54,6 @@ public class StripeWebhookService {
                         String rawJson = deserializer.getRawJson();
 
                         if (rawJson == null || rawJson.isBlank()) {
-                                System.out.println("⚠️ rawJson is null or empty");
                                 return;
                         }
 
@@ -93,7 +90,6 @@ public class StripeWebhookService {
                                 : null;
 
                 if (userId == null) {
-                        System.out.println("⚠️ checkout: userId が metadata に存在しない");
                         return;
                 }
 
@@ -104,7 +100,6 @@ public class StripeWebhookService {
                 if (!user.isTrialUsed()) {
                         user.setTrialUsed(true);
                         userRepository.save(user);
-                        System.out.println("✅ trialUsed = true にセット userId=" + userId);
                 }
 
                 Subscription sub = (subscriptionId != null)
@@ -135,7 +130,6 @@ public class StripeWebhookService {
                 Subscription sub = subscriptionRepository
                                 .findByStripeSubscriptionId(stripeSubId)
                                 .orElseGet(() -> {
-                                        System.out.println("⏳ subscription.created: 暫定レコード作成 " + stripeSubId);
                                         Subscription s = new Subscription();
                                         s.setStripeSubscriptionId(stripeSubId);
                                         return s;
@@ -180,7 +174,6 @@ public class StripeWebhookService {
                 Subscription sub = subscriptionRepository
                                 .findByStripeSubscriptionId(finalSubscriptionId)
                                 .orElseGet(() -> {
-                                        System.out.println("⏳ invoice.paid: 暫定レコード作成 " + finalSubscriptionId);
                                         Subscription s = new Subscription();
                                         s.setStripeSubscriptionId(finalSubscriptionId);
                                         return s;
@@ -216,7 +209,6 @@ public class StripeWebhookService {
                                 .orElse(null);
 
                 if (sub == null) {
-                        System.out.println("⚠️ subscription.deleted: レコードが存在しないためスキップ " + stripeSubId);
                         return;
                 }
 
@@ -233,7 +225,6 @@ public class StripeWebhookService {
                 Subscription sub = subscriptionRepository
                                 .findByStripeSubscriptionId(stripeSubId)
                                 .orElseGet(() -> {
-                                        System.out.println("⏳ subscription.updated: 暫定レコード作成 " + stripeSubId);
                                         Subscription s = new Subscription();
                                         s.setStripeSubscriptionId(stripeSubId);
                                         return s;

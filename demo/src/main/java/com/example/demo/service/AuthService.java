@@ -71,7 +71,6 @@ public class AuthService {
 
     private GoogleIdToken.Payload verifyToken(String idTokenString) {
         try {
-            System.out.println("TOKEN = " + idTokenString);
             GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier.Builder(
                     new NetHttpTransport(),
                     new JacksonFactory())

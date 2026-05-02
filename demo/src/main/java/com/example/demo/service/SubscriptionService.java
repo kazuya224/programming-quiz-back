@@ -66,13 +66,11 @@ public class SubscriptionService {
 
         // ✅ trialUsedがfalseの場合のみトライアルを付与
         if (!user.isTrialUsed()) {
-            System.out.println("🔥 [checkout] トライアルあり userId=" + user.getUserId());
             builder.setSubscriptionData(
                     SessionCreateParams.SubscriptionData.builder()
                             .setTrialPeriodDays(7L)
                             .build());
         } else {
-            System.out.println("🔥 [checkout] トライアルなし userId=" + user.getUserId());
         }
 
         Session session = Session.create(builder.build());
@@ -82,13 +80,8 @@ public class SubscriptionService {
     // 🔥 解約（仮実装）
     public void cancel(User user) {
 
-        System.out.println("🔥 [cancel] service called, userId=" + user.getUserId());
-
         Subscription subEntity = subscriptionRepository.findByUserId(user.getUserId())
                 .orElseThrow(() -> new RuntimeException("Subscription not found"));
-
-        System.out.println("🔥 [cancel] subEntity=" + subEntity);
-        System.out.println("🔥 [cancel] stripeSubId=" + subEntity.getStripeSubscriptionId());
 
         if (subEntity.getStripeSubscriptionId() == null) {
             throw new RuntimeException("stripeSubscriptionId is null");
@@ -106,13 +99,8 @@ public class SubscriptionService {
 
             subEntity.setCancelAtPeriodEnd(true);
             subscriptionRepository.save(subEntity);
-
-            System.out.println("✅ [cancel] 解約完了");
-
         } catch (Exception e) {
-            // ← これが今ないからログ見えない！
             e.printStackTrace();
-            System.out.println("❌ [cancel] error: " + e.getClass().getName() + " / " + e.getMessage());
             throw new RuntimeException("Stripe解約失敗", e);
         }
     }

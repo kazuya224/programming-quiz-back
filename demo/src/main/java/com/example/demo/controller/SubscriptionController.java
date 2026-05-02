@@ -39,8 +39,6 @@ public class SubscriptionController {
 
         boolean isPremium = subscriptionService.isPremium(user);
         Subscription sub = subscriptionService.getSubscription(user);
-        System.out.println("currentPeriodEnd: " + sub.getCurrentPeriodEnd());
-        System.out.println("now: " + LocalDateTime.now());
 
         return new SubscriptionResponse(isPremium, sub);
     }
@@ -59,15 +57,12 @@ public class SubscriptionController {
     // 解約
     @PostMapping("/cancel")
     public void cancel(@AuthenticationPrincipal org.springframework.security.oauth2.jwt.Jwt jwt) {
-        System.out.println("🔥 [cancel] API called");
+
         if (jwt == null) {
-            System.out.println("❌ [cancel] JWT is null");
             throw new RuntimeException("JWT is null");
         }
 
-        System.out.println("🔥 [cancel] subject: " + jwt.getSubject());
         User user = getUserFromJwt(jwt);
-        System.out.println("🔥 [cancel] userId: " + user.getUserId());
         subscriptionService.cancel(user);
     }
 

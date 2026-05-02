@@ -45,7 +45,6 @@ public class StripeWebhookController {
         }
 
         webhookService.handleEvent(event);
-        System.out.println("🔥 webhook received");
 
         return ResponseEntity.ok("success");
     }
