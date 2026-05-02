@@ -39,6 +39,9 @@ public class User {
     @Column(name = "stripe_customer_id")
     private String stripeCustomerId;
 
+    @Column(name = "trial_used", nullable = false, columnDefinition = "boolean default false")
+    private boolean trialUsed = false;
+
     // 🔥 timestamptz対応
     @Column(name = "created_at", insertable = false, updatable = false)
     private OffsetDateTime createdAt;

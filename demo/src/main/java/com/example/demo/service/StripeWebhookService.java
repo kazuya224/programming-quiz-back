@@ -100,7 +100,13 @@ public class StripeWebhookService {
                 User user = userRepository.findById(UUID.fromString(userId))
                                 .orElseThrow(() -> new RuntimeException("User not found: " + userId));
 
-                // ✅ 先着イベントで作られた暫定レコードがあれば引き継ぐ
+                // ✅ トライアル使用済みフラグを立てる
+                if (!user.isTrialUsed()) {
+                        user.setTrialUsed(true);
+                        userRepository.save(user);
+                        System.out.println("✅ trialUsed = true にセット userId=" + userId);
+                }
+
                 Subscription sub = (subscriptionId != null)
                                 ? subscriptionRepository
                                                 .findByStripeSubscriptionId(subscriptionId)
@@ -113,7 +119,6 @@ public class StripeWebhookService {
                 sub.setStripeSubscriptionId(subscriptionId);
                 sub.setCancelAtPeriodEnd(false);
 
-                // ✅ null のときだけ incomplete をセット（active 済みなら下げない）
                 if (sub.getStatus() == null) {
                         sub.setStatus("incomplete");
                 }

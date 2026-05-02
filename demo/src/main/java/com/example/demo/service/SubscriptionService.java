@@ -53,27 +53,29 @@ public class SubscriptionService {
 
     public String createCheckoutSession(User user) throws Exception {
 
-        SessionCreateParams params = SessionCreateParams.builder()
+        SessionCreateParams.Builder builder = SessionCreateParams.builder()
                 .setMode(SessionCreateParams.Mode.SUBSCRIPTION)
                 .setSuccessUrl("https://programing-quiz-zeta.vercel.app/success")
                 .setCancelUrl("https://programing-quiz-zeta.vercel.app/cancel")
                 .putMetadata("userId", user.getUserId().toString())
-
                 .addLineItem(
                         SessionCreateParams.LineItem.builder()
                                 .setPrice(priceId)
                                 .setQuantity(1L)
-                                .build())
+                                .build());
 
-                // 👇🔥 これを追加
-                .setSubscriptionData(
-                        SessionCreateParams.SubscriptionData.builder()
-                                .setTrialPeriodDays(7L)
-                                .build())
+        // ✅ trialUsedがfalseの場合のみトライアルを付与
+        if (!user.isTrialUsed()) {
+            System.out.println("🔥 [checkout] トライアルあり userId=" + user.getUserId());
+            builder.setSubscriptionData(
+                    SessionCreateParams.SubscriptionData.builder()
+                            .setTrialPeriodDays(1L)
+                            .build());
+        } else {
+            System.out.println("🔥 [checkout] トライアルなし userId=" + user.getUserId());
+        }
 
-                .build();
-
-        Session session = Session.create(params);
+        Session session = Session.create(builder.build());
         return session.getUrl();
     }
 
