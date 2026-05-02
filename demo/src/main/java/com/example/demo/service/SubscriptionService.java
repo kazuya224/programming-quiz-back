@@ -69,7 +69,7 @@ public class SubscriptionService {
             System.out.println("🔥 [checkout] トライアルあり userId=" + user.getUserId());
             builder.setSubscriptionData(
                     SessionCreateParams.SubscriptionData.builder()
-                            .setTrialPeriodDays(1L)
+                            .setTrialPeriodDays(7L)
                             .build());
         } else {
             System.out.println("🔥 [checkout] トライアルなし userId=" + user.getUserId());
