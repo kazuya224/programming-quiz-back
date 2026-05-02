@@ -33,6 +33,9 @@ public class Subscription {
     @Column(name = "cancel_at_period_end")
     private Boolean cancelAtPeriodEnd = false;
 
+    @Column(name = "trial_end")
+    private LocalDateTime trialEnd;
+
     @Column(name = "created_at", insertable = false, updatable = false)
     private LocalDateTime createdAt;
 

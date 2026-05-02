@@ -1,7 +1,9 @@
 package com.example.demo.service;
 
+import com.example.demo.entity.ProcessedEvent;
 import com.example.demo.entity.Subscription;
 import com.example.demo.entity.User;
+import com.example.demo.repository.ProcessedEventRepository;
 import com.example.demo.repository.SubscriptionRepository;
 import com.example.demo.repository.UserRepository;
 import com.google.gson.JsonObject;
@@ -9,10 +11,12 @@ import com.google.gson.JsonParser;
 import com.stripe.model.Event;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -21,9 +25,32 @@ public class StripeWebhookService {
 
         private final SubscriptionRepository subscriptionRepository;
         private final UserRepository userRepository;
+        private final ProcessedEventRepository processedEventRepository;
 
+        // ✅ status 昇順（巻き戻り防止）
+        private static final List<String> STATUS_ORDER = List.of("incomplete", "trialing", "active", "past_due",
+                        "canceled");
+
+        private boolean shouldUpdateStatus(String current, String next) {
+                if (current == null)
+                        return true;
+                int currentIdx = STATUS_ORDER.indexOf(current);
+                int nextIdx = STATUS_ORDER.indexOf(next);
+                if (currentIdx == -1 || nextIdx == -1)
+                        return true;
+                return nextIdx >= currentIdx;
+        }
+
+        @Transactional
         public void handleEvent(Event event) {
                 System.out.println("🔥 handleEvent start: " + event.getType());
+
+                // ✅ idempotency チェック（DB管理：再起動・スケールアウト対応）
+                if (processedEventRepository.existsById(event.getId())) {
+                        System.out.println("⏭️ already processed, skip: " + event.getId());
+                        return;
+                }
+
                 try {
                         var deserializer = event.getDataObjectDeserializer();
                         String rawJson = deserializer.getRawJson();
@@ -40,46 +67,91 @@ public class StripeWebhookService {
                                 case "invoice.payment_succeeded", "invoice.paid" -> handlePaymentSucceeded(obj);
                                 case "customer.subscription.deleted" -> handleSubscriptionDeleted(obj);
                                 case "customer.subscription.updated" -> handleSubscriptionUpdated(obj);
+                                case "customer.subscription.created" -> handleSubscriptionCreated(obj);
                         }
+
+                        // ✅ 正常完了後のみ処理済み登録（例外時は登録されずリトライ可能）
+                        processedEventRepository.save(new ProcessedEvent(event.getId()));
+
                 } catch (Exception e) {
                         System.err.println("Webhook handling error [" + event.getType() + "]: " + e.getMessage());
                         e.printStackTrace();
+                        throw e; // ✅ @Transactional のロールバックを発火させる
                 }
         }
 
+        // ✅ userId を確定する唯一のポイント
         private void handleCheckoutCompleted(JsonObject obj) {
 
-                // metadataからuserIdを取得
                 JsonObject metadata = obj.getAsJsonObject("metadata");
                 String userId = metadata != null && metadata.has("userId")
                                 ? metadata.get("userId").getAsString()
                                 : null;
 
-                // subscriptionIdを取得
                 String subscriptionId = obj.has("subscription") && !obj.get("subscription").isJsonNull()
                                 ? obj.get("subscription").getAsString()
                                 : null;
 
                 if (userId == null) {
-                        System.err.println("userIdがnullです");
+                        System.out.println("⚠️ checkout: userId が metadata に存在しない");
                         return;
                 }
 
                 User user = userRepository.findById(UUID.fromString(userId))
                                 .orElseThrow(() -> new RuntimeException("User not found: " + userId));
 
-                Subscription sub = subscriptionRepository
-                                .findByUserId(user.getUserId())
-                                .orElse(new Subscription());
+                // ✅ 先着イベントで作られた暫定レコードがあれば引き継ぐ
+                Subscription sub = (subscriptionId != null)
+                                ? subscriptionRepository
+                                                .findByStripeSubscriptionId(subscriptionId)
+                                                .orElseGet(Subscription::new)
+                                : subscriptionRepository
+                                                .findByUserId(user.getUserId())
+                                                .orElseGet(Subscription::new);
 
                 sub.setUserId(user.getUserId());
                 sub.setStripeSubscriptionId(subscriptionId);
-                sub.setStatus("active");
                 sub.setCancelAtPeriodEnd(false);
 
-                Subscription saved = subscriptionRepository.save(sub);
+                // ✅ null のときだけ incomplete をセット（active 済みなら下げない）
+                if (sub.getStatus() == null) {
+                        sub.setStatus("incomplete");
+                }
+
+                subscriptionRepository.save(sub);
         }
 
+        // ✅ Upsert（先着可）。userId はセットしない＝checkout が後から補完する
+        private void handleSubscriptionCreated(JsonObject obj) {
+
+                String stripeSubId = obj.get("id").getAsString();
+                String status = obj.get("status").getAsString();
+
+                Subscription sub = subscriptionRepository
+                                .findByStripeSubscriptionId(stripeSubId)
+                                .orElseGet(() -> {
+                                        System.out.println("⏳ subscription.created: 暫定レコード作成 " + stripeSubId);
+                                        Subscription s = new Subscription();
+                                        s.setStripeSubscriptionId(stripeSubId);
+                                        return s;
+                                });
+
+                if (shouldUpdateStatus(sub.getStatus(), status)) {
+                        sub.setStatus(status);
+                }
+
+                if (obj.has("current_period_end") && !obj.get("current_period_end").isJsonNull()) {
+                        long periodEnd = obj.get("current_period_end").getAsLong();
+                        sub.setCurrentPeriodEnd(
+                                        LocalDateTime.ofInstant(
+                                                        Instant.ofEpochSecond(periodEnd),
+                                                        ZoneId.of("Asia/Tokyo")));
+                }
+
+                subscriptionRepository.save(sub);
+        }
+
+        // ✅ Upsert（先着可）。userId はセットしない＝checkout が後から補完する
         private void handlePaymentSucceeded(JsonObject obj) {
 
                 String subscriptionId = null;
@@ -96,26 +168,29 @@ public class StripeWebhookService {
                         }
                 }
 
-                if (subscriptionId == null) {
+                if (subscriptionId == null)
                         return;
-                }
 
                 final String finalSubscriptionId = subscriptionId;
-
                 Subscription sub = subscriptionRepository
                                 .findByStripeSubscriptionId(finalSubscriptionId)
-                                .orElseThrow(() -> new RuntimeException(
-                                                "Subscription not found: " + finalSubscriptionId));
+                                .orElseGet(() -> {
+                                        System.out.println("⏳ invoice.paid: 暫定レコード作成 " + finalSubscriptionId);
+                                        Subscription s = new Subscription();
+                                        s.setStripeSubscriptionId(finalSubscriptionId);
+                                        return s;
+                                });
 
-                sub.setStatus("active");
+                if (shouldUpdateStatus(sub.getStatus(), "active")) {
+                        sub.setStatus("active");
+                }
+
                 if (obj.has("lines")) {
                         JsonObject lines = obj.getAsJsonObject("lines");
                         if (lines.has("data")) {
                                 JsonObject first = lines.getAsJsonArray("data").get(0).getAsJsonObject();
                                 JsonObject period = first.getAsJsonObject("period");
-
                                 long periodEnd = period.get("end").getAsLong();
-
                                 sub.setCurrentPeriodEnd(
                                                 LocalDateTime.ofInstant(
                                                                 Instant.ofEpochSecond(periodEnd),
@@ -126,19 +201,8 @@ public class StripeWebhookService {
                 subscriptionRepository.save(sub);
         }
 
+        // ✅ Stripe準拠：status は Stripe の値をそのまま使う
         private void handleSubscriptionDeleted(JsonObject obj) {
-
-                String stripeSubId = obj.get("id").getAsString();
-
-                Subscription sub = subscriptionRepository
-                                .findByStripeSubscriptionId(stripeSubId)
-                                .orElseThrow(() -> new RuntimeException("Subscription not found: " + stripeSubId));
-
-                sub.setStatus("canceled");
-                subscriptionRepository.save(sub);
-        }
-
-        private void handleSubscriptionUpdated(JsonObject obj) {
 
                 String stripeSubId = obj.get("id").getAsString();
 
@@ -147,16 +211,39 @@ public class StripeWebhookService {
                                 .orElse(null);
 
                 if (sub == null) {
+                        System.out.println("⚠️ subscription.deleted: レコードが存在しないためスキップ " + stripeSubId);
                         return;
+                }
+
+                // ✅ Stripe準拠（canceled / unpaid / incomplete_expired など将来拡張に対応）
+                sub.setStatus(obj.get("status").getAsString());
+                subscriptionRepository.save(sub);
+        }
+
+        // ✅ Upsert（先着可）。userId はセットしない＝checkout が後から補完する
+        private void handleSubscriptionUpdated(JsonObject obj) {
+
+                String stripeSubId = obj.get("id").getAsString();
+
+                Subscription sub = subscriptionRepository
+                                .findByStripeSubscriptionId(stripeSubId)
+                                .orElseGet(() -> {
+                                        System.out.println("⏳ subscription.updated: 暫定レコード作成 " + stripeSubId);
+                                        Subscription s = new Subscription();
+                                        s.setStripeSubscriptionId(stripeSubId);
+                                        return s;
+                                });
+
+                String status = obj.get("status").getAsString();
+                if (shouldUpdateStatus(sub.getStatus(), status)) {
+                        sub.setStatus(status);
                 }
 
                 boolean cancelAtPeriodEnd = obj.get("cancel_at_period_end").getAsBoolean();
                 sub.setCancelAtPeriodEnd(cancelAtPeriodEnd);
 
-                // ✅ ここだけで更新
                 if (obj.has("current_period_end") && !obj.get("current_period_end").isJsonNull()) {
                         long periodEnd = obj.get("current_period_end").getAsLong();
-
                         sub.setCurrentPeriodEnd(
                                         LocalDateTime.ofInstant(
                                                         Instant.ofEpochSecond(periodEnd),

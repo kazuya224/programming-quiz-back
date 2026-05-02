@@ -58,12 +58,19 @@ public class SubscriptionService {
                 .setSuccessUrl("https://programing-quiz-zeta.vercel.app/success")
                 .setCancelUrl("https://programing-quiz-zeta.vercel.app/cancel")
                 .putMetadata("userId", user.getUserId().toString())
-                // ✅ 削除：Stripeに自動で決めさせる
+
                 .addLineItem(
                         SessionCreateParams.LineItem.builder()
                                 .setPrice(priceId)
                                 .setQuantity(1L)
                                 .build())
+
+                // 👇🔥 これを追加
+                .setSubscriptionData(
+                        SessionCreateParams.SubscriptionData.builder()
+                                .setTrialPeriodDays(7L)
+                                .build())
+
                 .build();
 
         Session session = Session.create(params);
@@ -73,25 +80,37 @@ public class SubscriptionService {
     // 🔥 解約（仮実装）
     public void cancel(User user) {
 
+        System.out.println("🔥 [cancel] service called, userId=" + user.getUserId());
+
         Subscription subEntity = subscriptionRepository.findByUserId(user.getUserId())
                 .orElseThrow(() -> new RuntimeException("Subscription not found"));
+
+        System.out.println("🔥 [cancel] subEntity=" + subEntity);
+        System.out.println("🔥 [cancel] stripeSubId=" + subEntity.getStripeSubscriptionId());
+
+        if (subEntity.getStripeSubscriptionId() == null) {
+            throw new RuntimeException("stripeSubscriptionId is null");
+        }
 
         try {
             com.stripe.model.Subscription stripeSub = com.stripe.model.Subscription
                     .retrieve(subEntity.getStripeSubscriptionId());
 
-            // ✅ SubscriptionUpdateParams を使う
             SubscriptionUpdateParams params = SubscriptionUpdateParams.builder()
                     .setCancelAtPeriodEnd(true)
                     .build();
 
             stripeSub.update(params);
 
-            // ✅ DBも即時更新（webhookが遅れる場合の保険）
             subEntity.setCancelAtPeriodEnd(true);
             subscriptionRepository.save(subEntity);
 
+            System.out.println("✅ [cancel] 解約完了");
+
         } catch (Exception e) {
+            // ← これが今ないからログ見えない！
+            e.printStackTrace();
+            System.out.println("❌ [cancel] error: " + e.getClass().getName() + " / " + e.getMessage());
             throw new RuntimeException("Stripe解約失敗", e);
         }
     }
