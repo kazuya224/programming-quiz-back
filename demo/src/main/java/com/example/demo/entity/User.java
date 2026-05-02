@@ -7,6 +7,8 @@ import lombok.Setter;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
+import org.hibernate.annotations.UuidGenerator;
+
 @Entity
 @Table(name = "users")
 @Getter
@@ -14,6 +16,7 @@ import java.util.UUID;
 public class User {
 
     @Id
+    @UuidGenerator
     @Column(name = "user_id")
     private UUID userId;
 
