@@ -4,6 +4,10 @@ import java.util.List;
 
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
+import org.springframework.security.oauth2.server.resource.web.BearerTokenResolver;
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.http.HttpMethod;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -48,16 +52,18 @@ public class SecurityConfig {
                             "http://localhost:3000",
                             "https://programing-quiz-zeta.vercel.app"));
                     config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-                    config.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept"));
-                    config.setExposedHeaders(List.of("Authorization"));
+                    config.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept", "Cookie"));
+                    config.setExposedHeaders(List.of("Authorization", "Set-Cookie"));
                     return config;
                 }))
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/api/auth/google").permitAll()
                         .requestMatchers("/api/auth/login").permitAll()
                         .requestMatchers("/health").permitAll()
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2
+                        .bearerTokenResolver(bearerTokenResolver())
                         .jwt(jwt -> {
                         })
                         // ✅ Authorizationヘッダーがない場合は401ではなく通過させる
@@ -68,6 +74,21 @@ public class SecurityConfig {
                         }));
 
         return http.build();
+    }
+
+    @Bean
+    public BearerTokenResolver bearerTokenResolver() {
+        return request -> {
+            // Cookieから取得
+            if (request.getCookies() != null) {
+                for (var cookie : request.getCookies()) {
+                    if ("token".equals(cookie.getName())) {
+                        return cookie.getValue();
+                    }
+                }
+            }
+            return null;
+        };
     }
 
     @Bean

@@ -9,6 +9,7 @@ import com.example.demo.entity.User;
 import com.example.demo.repository.UserRepository;
 import com.example.demo.service.AuthService;
 import com.example.demo.service.JwtService;
+import com.example.demo.service.CookieService;
 
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
@@ -27,20 +28,28 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import jakarta.servlet.http.HttpServletResponse;
 
 @RestController
 @RequestMapping("/api/auth")
-@CrossOrigin(origins = "*")
+@CrossOrigin(origins = { "http://localhost:3000",
+        "https://programing-quiz-zeta.vercel.app" }, allowCredentials = "true")
 @RequiredArgsConstructor
 public class AuthController {
 
     private final AuthService authService;
+    private final CookieService cookieService;
 
     @PostMapping("/google")
-    public ResponseEntity<GoogleLoginResponse> googleLogin(
-            @RequestBody GoogleLoginRequest request) {
-        GoogleLoginResponse response = authService.googleLogin(request.getToken());
-        return ResponseEntity.ok(response);
+    public ResponseEntity<Void> googleLogin(
+            @RequestBody GoogleLoginRequest request,
+            HttpServletResponse response) {
+
+        String token = authService.googleLogin(request.getToken()).getToken();
+
+        cookieService.addTokenCookie(response, token);
+
+        return ResponseEntity.ok().build();
     }
 
     @PatchMapping("/username")
