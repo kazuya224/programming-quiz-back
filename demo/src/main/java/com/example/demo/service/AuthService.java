@@ -41,10 +41,16 @@ public class AuthService {
         String googleId = payload.getSubject();
         String email = payload.getEmail();
 
-        Optional<User> userOpt = userRepository.findByGoogleId(googleId);
-
+        Optional<User> userOpt = userRepository.findByEmail(email);
         if (userOpt.isPresent()) {
             User user = userOpt.get();
+
+            if (user.getGoogleId() == null ||
+                    !user.getGoogleId().equals(googleId)) {
+
+                user.setGoogleId(googleId);
+                userRepository.save(user);
+            }
 
             String jwt = jwtService.generateToken(user.getUserId());
 
