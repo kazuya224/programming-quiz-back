@@ -69,8 +69,10 @@ public class AuthController {
 
     @GetMapping("/me")
     public ResponseEntity<?> me(@AuthenticationPrincipal Jwt jwt) {
+        System.out.println("sub=" + jwt.getSubject());
         UUID userId = UUID.fromString(jwt.getSubject());
         User user = authService.findById(userId);
+        System.out.println("user=" + user.getEmail());
         return ResponseEntity.ok(
                 new MeResponse(user.getUserName()));
     }
