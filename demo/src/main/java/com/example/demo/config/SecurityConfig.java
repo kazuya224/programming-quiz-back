@@ -50,7 +50,8 @@ public class SecurityConfig {
                     config.setAllowCredentials(true);
                     config.setAllowedOrigins(List.of(
                             "http://localhost:3000",
-                            "https://programing-quiz-zeta.vercel.app"));
+                            "https://programing-quiz-zeta.vercel.app",
+                            "https://app.devtrain-app.com"));
                     config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
                     config.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept", "Cookie"));
                     config.setExposedHeaders(List.of("Authorization", "Set-Cookie"));

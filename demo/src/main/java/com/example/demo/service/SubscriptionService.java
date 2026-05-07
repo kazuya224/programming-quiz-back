@@ -55,8 +55,10 @@ public class SubscriptionService {
 
         SessionCreateParams.Builder builder = SessionCreateParams.builder()
                 .setMode(SessionCreateParams.Mode.SUBSCRIPTION)
-                .setSuccessUrl("https://programing-quiz-zeta.vercel.app/success")
-                .setCancelUrl("https://programing-quiz-zeta.vercel.app/cancel")
+                // .setSuccessUrl("https://programing-quiz-zeta.vercel.app/success")
+                // .setCancelUrl("https://programing-quiz-zeta.vercel.app/cancel")
+                .setSuccessUrl("https://app.devtrain-app.com/success")
+                .setCancelUrl("https://app.devtrain-app.com/cancel")
                 .putMetadata("userId", user.getUserId().toString())
                 .addLineItem(
                         SessionCreateParams.LineItem.builder()

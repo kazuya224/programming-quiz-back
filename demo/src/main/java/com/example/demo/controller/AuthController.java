@@ -33,7 +33,8 @@ import jakarta.servlet.http.HttpServletResponse;
 @RestController
 @RequestMapping("/api/auth")
 @CrossOrigin(origins = { "http://localhost:3000",
-        "https://programing-quiz-zeta.vercel.app" }, allowCredentials = "true")
+        "https://programing-quiz-zeta.vercel.app",
+        "https://app.devtrain-app.com" }, allowCredentials = "true")
 @RequiredArgsConstructor
 public class AuthController {
 
