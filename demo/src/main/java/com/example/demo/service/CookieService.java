@@ -14,6 +14,7 @@ public class CookieService {
     private boolean isProd;
 
     public void addTokenCookie(HttpServletResponse response, String token) {
+        System.out.println("isProd=" + isProd);
         ResponseCookie cookie = ResponseCookie.from("token", token)
                 .httpOnly(true)
                 .path("/")

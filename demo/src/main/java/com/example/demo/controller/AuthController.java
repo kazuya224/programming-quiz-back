@@ -47,7 +47,9 @@ public class AuthController {
 
         String token = authService.googleLogin(request.getToken()).getToken();
 
+        System.out.println("before add cookie");
         cookieService.addTokenCookie(response, token);
+        System.out.println("after add cookie");
 
         return ResponseEntity.ok().build();
     }
