@@ -29,6 +29,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletRequest;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -69,11 +71,29 @@ public class AuthController {
     }
 
     @GetMapping("/me")
-    public ResponseEntity<?> me(@AuthenticationPrincipal Jwt jwt) {
+    public ResponseEntity<?> me(
+            @AuthenticationPrincipal Jwt jwt,
+            HttpServletRequest request) {
+
+        System.out.println("===== COOKIE CHECK =====");
+
+        Cookie[] cookies = request.getCookies();
+
+        if (cookies == null) {
+            System.out.println("cookies is null");
+        } else {
+            for (Cookie c : cookies) {
+                System.out.println(c.getName() + "=" + c.getValue());
+            }
+        }
+
         System.out.println("sub=" + jwt.getSubject());
+
         UUID userId = UUID.fromString(jwt.getSubject());
         User user = authService.findById(userId);
+
         System.out.println("user=" + user.getEmail());
+
         return ResponseEntity.ok(
                 new MeResponse(user.getUserName()));
     }
