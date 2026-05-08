@@ -72,30 +72,14 @@ public class AuthController {
 
     @GetMapping("/me")
     public ResponseEntity<?> me(
-            @AuthenticationPrincipal Jwt jwt,
-            HttpServletRequest request) {
-
-        System.out.println("===== COOKIE CHECK =====");
-
-        Cookie[] cookies = request.getCookies();
-
-        if (cookies == null) {
-            System.out.println("cookies is null");
-        } else {
-            for (Cookie c : cookies) {
-                System.out.println(c.getName() + "=" + c.getValue());
-            }
-        }
-
-        System.out.println("sub=" + jwt.getSubject());
+            @AuthenticationPrincipal Jwt jwt) {
 
         UUID userId = UUID.fromString(jwt.getSubject());
         User user = authService.findById(userId);
 
-        System.out.println("user=" + user.getEmail());
-
-        return ResponseEntity.ok(
-                new MeResponse(user.getUserName()));
+        return ResponseEntity.ok()
+                .header("Cache-Control", "no-store")
+                .body(new MeResponse(user.getUserName()));
     }
 
 }
