@@ -162,4 +162,6 @@ public interface UserProgressRepository extends JpaRepository<UserProgress, UUID
             """)
     List<UserProgress> findHistoryWithQuestion(UUID userId);
 
+    boolean existsByUserId(UUID userId);
+
 }

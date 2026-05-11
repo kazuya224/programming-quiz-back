@@ -6,6 +6,7 @@ import com.example.demo.dto.request.GoogleLoginRequest;
 import com.example.demo.dto.response.GoogleLoginResponse;
 import com.example.demo.dto.response.MeResponse;
 import com.example.demo.entity.User;
+import com.example.demo.repository.UserProgressRepository;
 import com.example.demo.repository.UserRepository;
 import com.example.demo.service.AuthService;
 import com.example.demo.service.JwtService;
@@ -42,6 +43,7 @@ public class AuthController {
 
     private final AuthService authService;
     private final CookieService cookieService;
+    private final UserProgressRepository userProgressRepository;
 
     @PostMapping("/google")
     public ResponseEntity<Void> googleLogin(
@@ -76,10 +78,11 @@ public class AuthController {
 
         UUID userId = UUID.fromString(jwt.getSubject());
         User user = authService.findById(userId);
+        boolean hasAnswered = userProgressRepository.existsByUserId(userId);
 
         return ResponseEntity.ok()
                 .header("Cache-Control", "no-store")
-                .body(new MeResponse(user.getUserName()));
+                .body(new MeResponse(user.getUserName(), hasAnswered));
     }
 
 }
