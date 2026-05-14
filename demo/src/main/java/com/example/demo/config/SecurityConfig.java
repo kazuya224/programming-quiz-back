@@ -41,7 +41,7 @@ public class SecurityConfig {
 
     // 本番環境を見据え、現時点では認証をバイパスしつつ構成を整える
     @Bean
-    @Order(2)
+    @Order(3)
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(csrf -> csrf.disable())
@@ -62,6 +62,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/google").permitAll()
                         .requestMatchers("/api/auth/login").permitAll()
                         .requestMatchers("/health").permitAll()
+                        .requestMatchers("/api/sitemap/**").permitAll()
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .bearerTokenResolver(bearerTokenResolver())
@@ -93,10 +94,24 @@ public class SecurityConfig {
     }
 
     @Bean
-    @Order(1)
+    @Order(2)
     public SecurityFilterChain stripeWebhookChain(HttpSecurity http) throws Exception {
         http
                 .securityMatcher("/api/stripe/webhook") // ←🔥これ重要
+                .csrf(csrf -> csrf.disable())
+                .authorizeHttpRequests(auth -> auth
+                        .anyRequest().permitAll());
+
+        return http.build();
+    }
+
+    @Bean
+    @Order(1)
+    public SecurityFilterChain sitemapChain(
+            HttpSecurity http) throws Exception {
+
+        http
+                .securityMatcher("/api/sitemap/**")
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
                         .anyRequest().permitAll());
